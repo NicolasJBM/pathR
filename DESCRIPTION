@@ -1,0 +1,37 @@
+Package: pathR
+Title: Design learning experiences
+Version: 1.30
+Date: 2023-08-02
+Authors@R: 
+    person(given = "Nicolas",
+           family = "Mangin",
+           role = c("aut", "cre"),
+           email = "nicolas.jb.mangin@gmail.com",
+           comment = c(ORCID = "0000-0002-1597-9376"))
+Description: Functions and interfaces to facilitate the design of learning experiences.
+Encoding: UTF-8
+License: GPL-3 | file LICENSE
+Depends: R (>= 3.6)
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Imports:
+    shiny,
+    shinydashboard,
+    shinydashboardPlus,
+    shinyWidgets,
+    dplyr,
+    readxl,
+    rhandsontable,
+    stringr,
+    tibble,
+    DiagrammeR,
+    igraph,
+    shinyalert,
+    tidyr,
+    writexl,
+    purrr,
+    editR,
+    ggplot2,
+    forcats,
+    lubridate
+    
