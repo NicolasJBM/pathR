@@ -1099,11 +1099,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     shiny::observeEvent(input$openpaths, {
-      if (base::Sys.info()[1] == "Windows"){
-        base::shell.exec(pathfile())
-      } else {
-        base::system2(pathfile())
-      }
+      base::system2(pathfile())
     })
     
     shiny::observeEvent(input$exportpaths, {
