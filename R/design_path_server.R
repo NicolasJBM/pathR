@@ -8,12 +8,14 @@
 #' @param tree Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR
 #' @param course_paths Reactive. Function containing a list of paths to the different folders and databases on local disk.
 #' @return Save the new or modified page in the folder "2_documents/main_language/".
+#' @importFrom DT renderDataTable
 #' @importFrom DiagrammeR add_edge
 #' @importFrom DiagrammeR add_node
 #' @importFrom DiagrammeR create_graph
 #' @importFrom DiagrammeR render_graph
 #' @importFrom DiagrammeR to_igraph
 #' @importFrom dplyr add_row
+#' @importFrom dplyr all_of
 #' @importFrom dplyr arrange
 #' @importFrom dplyr bind_rows
 #' @importFrom dplyr case_when
@@ -23,10 +25,15 @@
 #' @importFrom dplyr left_join
 #' @importFrom dplyr mutate
 #' @importFrom dplyr mutate_all
+#' @importFrom dplyr mutate_if
+#' @importFrom dplyr n
+#' @importFrom dplyr percent_rank
 #' @importFrom dplyr select
+#' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
 #' @importFrom editR selection_server
 #' @importFrom forcats fct_reorder
+#' @importFrom forcats fct_rev
 #' @importFrom ggplot2 aes
 #' @importFrom ggplot2 element_text
 #' @importFrom ggplot2 geom_bar
@@ -41,6 +48,8 @@
 #' @importFrom igraph layout_with_fr
 #' @importFrom igraph layout_with_graphopt
 #' @importFrom igraph layout_with_kk
+#' @importFrom lubridate as_date
+#' @importFrom lubridate hour
 #' @importFrom lubridate week
 #' @importFrom purrr map
 #' @importFrom purrr map_chr
@@ -70,13 +79,18 @@
 #' @importFrom shiny tagList
 #' @importFrom shinyWidgets airDatepickerInput
 #' @importFrom shinyWidgets radioGroupButtons
+#' @importFrom shinyWidgets sliderTextInput
+#' @importFrom shinyWidgets virtualSelectInput
 #' @importFrom shinyalert shinyalert
+#' @importFrom shinydashboard valueBox
 #' @importFrom stringr str_detect
 #' @importFrom stringr str_remove_all
 #' @importFrom stringr str_replace
 #' @importFrom stringr str_replace_all
 #' @importFrom stringr str_split
 #' @importFrom tibble tibble
+#' @importFrom tibble tribble
+#' @importFrom tidyr complete
 #' @importFrom tidyr nest
 #' @importFrom tidyr replace_na
 #' @importFrom tidyr unnest
@@ -87,6 +101,8 @@
 design_path_server <- function(id, filtered, tree, course_data, course_paths){
   ns <- shiny::NS(id)
   shiny::moduleServer(id, function(input, output, session) {
+    
+    # ASSIGN ###################################################################
     
     color <- NULL
     flag <- NULL
@@ -135,6 +151,27 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     week <- NULL
     outcomelab <- NULL
     day <- NULL
+    newid <- NULL
+    outcome_labels <- NULL
+    simplelab <- NULL
+    fontcolor <- NULL
+    endday <- NULL
+    endweek <- NULL
+    objectnbr <- NULL
+    social <- NULL
+    start <- NULL
+    startday <- NULL
+    startweek <- NULL
+    time_space <- NULL
+    outcomenbr <- NULL
+    endorder <- NULL
+    period <- NULL
+    startorder <- NULL
+    height <- NULL
+    subject <- NULL
+    width <- NULL
+    fontsize <- NULL
+    
     
     # DATA #####################################################################
     # Load paths
@@ -172,18 +209,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     shiny::observe({
-      if (!base::is.null(pathfile())){
-        reactval$outcomes <- readxl::read_excel(pathfile(), sheet = "outcomes", col_types = "text")
-        reactval$connections <- readxl::read_excel(pathfile(), sheet = "connections", col_types = "text")
-        reactval$outlabels <- readxl::read_excel(pathfile(), sheet = "outlabels", col_types = "text")
-        reactval$activities <- readxl::read_excel(pathfile(), sheet = "activities", col_types = "text")
-        reactval$paths <- readxl::read_excel(pathfile(), sheet = "paths", col_types = "text")
-        reactval$actlabels <- readxl::read_excel(pathfile(), sheet = "actlabels", col_types = "text")
-        reactval$actattributes <- readxl::read_excel(pathfile(), sheet = "actattributes", col_types = "text")
-        reactval$attributes <- readxl::read_excel(pathfile(), sheet = "attributes", col_types = "text")
-        reactval$students <- readxl::read_excel(pathfile(), sheet = "students", col_types = "text")
-        reactval$interactions <- readxl::read_excel(pathfile(), sheet = "interactions", col_types = c("text","date","text","text","text","text"))
-      } else {
+      shiny::req(!base::is.null(pathfile()))
+      
+      if (!base::file.exists(pathfile())){
         reactval$outcomes <- tibble::tibble(
           outcome = base::as.character(NA),
           order = base::as.character(NA),
@@ -232,12 +260,26 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           start = base::as.character(NA),
           end = base::as.character(NA)
         )
-        reactval$attributes <- tibble::tibble(
-          attribute = base::as.character(NA),
-          value = base::as.character(NA),
-          language = base::as.character(NA),
-          label = base::as.character(NA),
-          icon = base::as.character(NA)
+        reactval$attributes <- tibble::tribble(
+          ~"attribute", ~"value", ~"language", ~"label", ~"icon",
+          "social", "IND", "US", "Individual", "user",
+          "social", "TM", "US", "Team", "user-plus",
+          "social", "GP", "US", "Group", "people-group",
+          "time_space", "AOL", "US", "Asynchronous", "house-laptop",
+          "time_space", "SOL", "US", "Synchronous online", "house-signal",
+          "time_space", "SOS", "US", "Synchronous on site", "school",
+          "requirement", "OPT", "US", "Optional", "circle-question",
+          "requirement", "REC", "US", "Recommended", "circle-xmark",
+          "requirement", "NEC", "US", "Necessary", "circle-exclamation",
+          "social", "IND", "FR", "Individuel", "user",
+          "social", "TM", "FR", "Equipe", "user-plus",
+          "social", "GP", "FR", "Groupe", "people-group",
+          "time_space", "AOL", "FR", "Asynchrone", "house-laptop",
+          "time_space", "SOL", "FR", "Synchrone en ligne", "house-signal",
+          "time_space", "SOS", "FR", "Synchrone sur site", "school",
+          "requirement", "OPT", "FR", "Facultatif", "circle-question",
+          "requirement", "REC", "FR", "Recommande", "circle-xmark",
+          "requirement", "NEC", "FR", "Necessaire", "circle-exclamation"
         )
         reactval$students <- tibble::tibble(
           userid = base::as.character(NA),
@@ -250,13 +292,39 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         reactval$interactions <- tibble::tibble(
           log = base::as.character(NA),
           date = base::as.Date(NA),
-          week = base::as.character(NA),
           subject = base::as.character(NA),
           action = base::as.character(NA),
           object = base::as.character(NA),
           context = base::as.character(NA)
         )
+        
+        writexl::write_xlsx(
+          base::list(
+            outcomes = reactval$outcomes,
+            connections = reactval$connections,
+            outlabels = reactval$outlabels,
+            activities = reactval$activities,
+            paths = reactval$paths,
+            actlabels = reactval$actlabels,
+            actattributes = reactval$actattributes,
+            attributes = reactval$attributes,
+            students = reactval$students,
+            interactions = reactval$interactions
+          ),
+          path = pathfile()
+        )
       }
+      
+      reactval$outcomes <- readxl::read_excel(pathfile(), sheet = "outcomes", col_types = "text")
+      reactval$connections <- readxl::read_excel(pathfile(), sheet = "connections", col_types = "text")
+      reactval$outlabels <- readxl::read_excel(pathfile(), sheet = "outlabels", col_types = "text")
+      reactval$activities <- readxl::read_excel(pathfile(), sheet = "activities", col_types = "text")
+      reactval$paths <- readxl::read_excel(pathfile(), sheet = "paths", col_types = "text")
+      reactval$actlabels <- readxl::read_excel(pathfile(), sheet = "actlabels", col_types = "text")
+      reactval$actattributes <- readxl::read_excel(pathfile(), sheet = "actattributes", col_types = "text")
+      reactval$attributes <- readxl::read_excel(pathfile(), sheet = "attributes", col_types = "text")
+      reactval$students <- readxl::read_excel(pathfile(), sheet = "students", col_types = "text")
+      reactval$interactions <- readxl::read_excel(pathfile(), sheet = "interactions", col_types = c("text","date","text","text","text","text"))
     })
     
     # OUTCOMES #################################################################
@@ -272,7 +340,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::select(-language)
       reactval$outcomes |>
         dplyr::left_join(labels, by = "outcome") |>
-        dplyr::select(outcome, label, description, lmsid, URL, order, type, color)
+        dplyr::select(outcome, label, description, lmsid, URL, order, type, color) |>
+        dplyr::mutate(
+          type = base::factor(type, levels = c("PRE", "SPE", "GEN")),
+          order = base::as.numeric(order)
+        ) |>
+        dplyr::arrange(order)
     })
     
     # Edit the outcome (feature that are either specific or common to all languages)
@@ -280,16 +353,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(outcomelist())
       outcomelist() |>
         dplyr::add_row() |>
-        dplyr::mutate(
-          type = base::factor(type, levels = c("PRE", "SPE", "GEN")),
-          order = base::as.numeric(order)
-        ) |>
-        dplyr::arrange(order) |>
+        dplyr::mutate(newid = "") |>
         rhandsontable::rhandsontable(
           height = 500, width = "100%", rowHeaders = NULL, stretchH = "all"
         ) |>
         rhandsontable::hot_cols(
-          colWidths = c("6%","25%","35%","6%","10%","6%","6%","6%")
+          colWidths = c("10%","20%","30%","5%","10%","5%","5%","5%","10%")
         ) |>
         rhandsontable::hot_context_menu(
           allowRowEdit = TRUE, allowColEdit = FALSE
@@ -300,6 +369,37 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       updated_outcomes <- rhandsontable::hot_to_r(input$editoutcomes) |>
         dplyr::mutate_all(base::as.character) |>
         dplyr::filter(!base::is.na(outcome), outcome != "")
+      
+      connections <- reactval$connections
+      actattributes <- reactval$actattributes
+      outlabels <- reactval$outlabels
+      
+      changed_ids <- updated_outcomes |>
+        dplyr::filter(newid != "") |>
+        dplyr::select(outcome, newid)
+      
+      for (i in base::seq_len(base::nrow(changed_ids))) {
+        fromid <- changed_ids$outcome[[i]]
+        toid <- changed_ids$newid[[i]]
+        updated_outcomes$outcome <- stringr::str_replace_all(
+          updated_outcomes$outcome, fromid, toid
+        )
+        connections$origin <- stringr::str_replace_all(
+          connections$origin, fromid, toid
+        )
+        connections$destination <- stringr::str_replace_all(
+          connections$destination, fromid, toid
+        )
+        outlabels$outcome <- stringr::str_replace_all(
+          outlabels$outcome, fromid, toid
+        )
+        actattributes$outcomes <- stringr::str_replace_all(
+          actattributes$outcomes, fromid, toid
+        )
+      }
+      
+      updated_outcomes <- updated_outcomes |>
+        dplyr::select(-newid)
       
       checkids <- updated_outcomes |>
         dplyr::group_by(outcome) |>
@@ -321,7 +421,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         outlabels <- dplyr::select(updated_outcomes, outcome) |>
           dplyr::mutate(language = base::list(all_languages)) |>
           tidyr::unnest(language) |>
-          dplyr::left_join(reactval$outlabels, by = c("outcome", "language")) |>
+          dplyr::left_join(outlabels, by = c("outcome", "language")) |>
           dplyr::group_by(outcome) |>
           tidyr::nest() |>
           dplyr::mutate(data = purrr::map(data, function(x,y){
@@ -339,7 +439,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::bind_rows(updated_outlabels) |>
           base::unique()
         
-        connections <- reactval$connections |>
+        connections <- connections |>
           dplyr::filter(
             origin %in% updated_outcomes$outcome,
             destination %in% updated_outcomes$outcome
@@ -348,6 +448,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         reactval$outlabels <- outlabels
         reactval$outcomes <- updated_outcomes
         reactval$connections <- connections
+        reactval$actattributes <- actattributes
         
       } else {
         shinyalert::shinyalert(
@@ -387,38 +488,30 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     # Visualize the outcome map.
-    outcome_labels <- shiny::reactive({
-      shiny::req(outcomelist())
-      reactval$outlabels |>
-        dplyr::filter(language == input$slctlang) |>
-        dplyr::select(-language)
-    })
     
-    output$outcomemap <- shiny::renderUI({
-      
+    outcome_graph <- shiny::reactive({
       shiny::req(base::nrow(reactval$outlabels) > 1)
       shiny::req(base::nrow(reactval$outcomes) > 1)
       shiny::req(base::nrow(reactval$connections) > 1)
       shiny::req(!base::is.null(input$slctlang))
-      shiny::req(!base::is.null(outcome_labels()))
-      
-      outcomelabs <- outcome_labels() |>
-        dplyr::mutate(label = stringr::str_replace_all(label, "_", "\n"))
+      shiny::req(!base::is.null(outcomelist()))
       
       outcome_graph <- DiagrammeR::create_graph()
       
-      nodes <- reactval$outcomes |>
+      nodes <- outcomelist() |>
         tidyr::replace_na(base::list(description = " ")) |>
-        dplyr::left_join(outcomelabs, by = "outcome") |>
         dplyr::mutate(
           shape = dplyr::case_when(
             type == "PRE" ~ "rectangle",
             type == "GEN" ~ "star",
             TRUE ~ "ellipse"
           ),
-          tooltip = base::paste(description, outcome, sep = "\n\n")
+          simplelab = stringr::str_replace_all(label, "_", " "),
+          tooltip = base::paste(simplelab, description, sep = "\n\n"),
+          tooltip = base::paste(tooltip, outcome, sep = "\n\n")
         ) |>
-        dplyr::select(label, shape, color, tooltip, URL)
+        dplyr::select(label, shape, color, tooltip, URL) |>
+        dplyr::mutate(label = stringr::str_replace_all(label, "_", "\n"))
       
       for (i in base::seq_len(base::nrow(nodes))) {
         outcome_graph <- DiagrammeR::add_node(
@@ -426,10 +519,15 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           label = nodes[[i,'label']]
         )
       }
+      
       edges <- reactval$connections |>
-        dplyr::left_join(dplyr::select(outcomelabs, origin = outcome, origlab = label), by = "origin") |>
-        dplyr::left_join(dplyr::select(outcomelabs, destination = outcome, destlab = label), by = "destination") |>
-        dplyr::select(origin = origlab, destination = destlab)
+        dplyr::left_join(dplyr::select(outcomelist(), origin = outcome, origlab = label), by = "origin") |>
+        dplyr::left_join(dplyr::select(outcomelist(), destination = outcome, destlab = label), by = "destination") |>
+        dplyr::select(origin = origlab, destination = destlab) |>
+        dplyr::mutate(
+          origin = stringr::str_replace_all(origin, "_", "\n"),
+          destination = stringr::str_replace_all(destination, "_", "\n")
+        )
       
       for (i in base::seq_len(base::nrow(edges))) {
         outcome_graph <- DiagrammeR::add_edge(
@@ -469,8 +567,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       outcome_graph$nodes_df$x <- layout[,1] / input$defscalingoutcomes
       outcome_graph$nodes_df$y <- layout[,2] / input$defscalingoutcomes
       
+      outcome_graph
+    })
+    
+    output$outcomemap <- shiny::renderUI({
+      shiny::req(!base::is.null(outcome_graph()))
       DiagrammeR::render_graph(
-        outcome_graph,
+        outcome_graph(),
         width = "1600px",
         height = "800px",
         as_svg = TRUE
@@ -492,7 +595,14 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::select(-language)
       reactval$activities |>
         dplyr::left_join(labels, by = "activity") |>
-        dplyr::select(activity, label, description, lmsid, URL, order, type)
+        dplyr::select(activity, label, description, lmsid, URL, order, type) |>
+        dplyr::mutate(
+          type = base::factor(type, levels = c(
+            "Slide","Video","Textbook","Note","Tutorial","Game","Case","Test"
+          )),
+          order = base::as.numeric(order)
+        ) |>
+        dplyr::arrange(order)
     })
     
     # Create activities and edit attributes specific to a language..
@@ -500,16 +610,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(!base::is.null(activitylist()))
       activitylist() |>
         dplyr::add_row() |>
-        dplyr::mutate(
-          type = base::factor(type, levels = c("Note", "Slide", "Video","Textbook","Tutorial","Game","Case","Test")),
-          order = base::as.numeric(order)
-        ) |>
-        dplyr::arrange(order) |>
+        dplyr::mutate(newid = "") |>
         rhandsontable::rhandsontable(
           height = 500, width = "100%", rowHeaders = NULL, stretchH = "all"
         ) |>
         rhandsontable::hot_cols(
-          colWidths = c("10%","20%","30%","10%","10%","10%","10%")
+          colWidths = c("10%","20%","28%","8%","8%","8%","8%","10%")
         ) |>
         rhandsontable::hot_context_menu(
           allowRowEdit = TRUE, allowColEdit = FALSE
@@ -520,6 +626,37 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       updated_activities <- rhandsontable::hot_to_r(input$createactivities) |>
         dplyr::mutate_all(base::as.character) |>
         dplyr::filter(!base::is.na(activity), activity != "")
+      
+      paths <- reactval$paths
+      actlabels <- reactval$actlabels
+      actattributes <- reactval$actattributes
+      
+      changed_ids <- updated_activities |>
+        dplyr::filter(newid != "") |>
+        dplyr::select(activity, newid)
+      
+      for (i in base::seq_len(base::nrow(changed_ids))) {
+        fromid <- changed_ids$activity[[i]]
+        toid <- changed_ids$newid[[i]]
+        updated_activities$activity <- stringr::str_replace_all(
+          updated_activities$activity, fromid, toid
+        )
+        actlabels$activity <- stringr::str_replace_all(
+          actlabels$activity, fromid, toid
+        )
+        paths$origin <- stringr::str_replace_all(
+          paths$origin, fromid, toid
+        )
+        paths$destination <- stringr::str_replace_all(
+          paths$destination, fromid, toid
+        )
+        actattributes$activity <- stringr::str_replace_all(
+          actattributes$activity, fromid, toid
+        )
+      }
+      
+      updated_activities <- updated_activities |>
+        dplyr::select(-newid)
       
       checkids <- updated_activities |>
         dplyr::group_by(activity) |>
@@ -541,7 +678,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         actlabels <- dplyr::select(updated_activities, activity) |>
           dplyr::mutate(language = base::list(all_languages)) |>
           tidyr::unnest(language) |>
-          dplyr::left_join(reactval$actlabels, by = c("activity", "language")) |>
+          dplyr::left_join(actlabels, by = c("activity", "language")) |>
           dplyr::group_by(activity) |>
           tidyr::nest() |>
           dplyr::mutate(data = purrr::map(data, function(x,y){
@@ -562,7 +699,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         actattributes <- updated_activities |>
           dplyr::select(activity) |>
           base::unique() |>
-          dplyr::left_join(reactval$actattributes, by = "activity") |>
+          dplyr::left_join(actattributes, by = "activity") |>
           tidyr::replace_na(base::list(
             requirement = "OPT",
             weigth = "0",
@@ -571,7 +708,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             duration = "0"
           ))
         
-        paths <- reactval$paths |>
+        paths <- paths |>
           dplyr::filter(
             origin %in% updated_activities$activity,
             destination %in% updated_activities$activity
@@ -619,7 +756,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       slctoutcomes <- outcomelist() |>
         dplyr::filter(type != "GEN")
       outcomes <- slctoutcomes$outcome
-      base::names(outcomes) <- slctoutcomes$label
+      base::names(outcomes) <- stringr::str_replace_all(slctoutcomes$label, "_", " ")
       
       preslctoutcomes <- attributes$outcomes[1] |>
         stringr::str_split(" ", simplify = TRUE) |>
@@ -828,7 +965,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       reactval$paths <- updated_paths
     })
     
-    # Visualize the outcome map.
+    # Visualize the activity map.
     
     activity_labels <- shiny::reactive({
       outcomes <- dplyr::select(reactval$outcomes, outcome, color)
@@ -847,7 +984,6 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(reactval$activities, by = "activity") |>
         dplyr::left_join(reactval$actattributes, by = "activity") |>
         dplyr::mutate(
-          label = stringr::str_replace_all(label, "_", "\n"),
           outcome = purrr::map_chr(outcomes, function(x){
             y <- stringr::str_split(x, " ", simplify = TRUE) |>
               base::as.character()
@@ -863,8 +999,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         tidyr::replace_na(base::list(end = "-"))
     })
     
-    output$activitymap <- shiny::renderUI({
-      
+    activity_graph <- shiny::reactive({
       shiny::req(base::nrow(reactval$outcomes) > 1)
       shiny::req(base::nrow(reactval$actlabels) > 1)
       shiny::req(base::nrow(reactval$activities) > 1)
@@ -881,10 +1016,10 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::mutate(weigth = base::as.numeric(weigth)) |>
         dplyr::mutate(
           shape = dplyr::case_when(
-            type == "Note" ~ "circle",
             type == "Slide" ~ "square",
             type == "Video" ~ "rectangle",
             type == "Textbook" ~ "ellipse",
+            type == "Note" ~ "circle",
             type == "Tutorial" ~ "hexagon",
             type == "Game" ~ "septagon",
             type == "Case" ~ "octagon",
@@ -892,8 +1027,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             TRUE ~ "point"
           ),
           alpha = dplyr::case_when(
-            requirement == "OPT" ~ "33",
-            TRUE ~ "77"
+            requirement == "OPT" ~ "22",
+            requirement == "REC" ~ "77",
+            TRUE ~ "FF"
+          ),
+          fontcolor = dplyr::case_when(
+            requirement == "NEC" ~ "white",
+            TRUE ~ "black"
           ),
           peripheries = dplyr::case_when(
             time_space == "AOL" ~ 1,
@@ -902,6 +1042,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           ),
           penwidth = 0.5 + weigth * 10,
           tooltip = base::paste0(
+            stringr::str_replace_all(label, "_", " "), "\n\n",
             description, "\n\n",
             reqlab, " | ", base::round(weigth * 100,0), "%\n",
             soclab, " | ", tslab, "\n",
@@ -910,11 +1051,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           )
         ) |>
         dplyr::mutate(
+          label = stringr::str_replace_all(label, "_", "\n"),
           bordercolor = base::paste(color, "CC", sep = ""),
-          fillcolor = base::paste(color, alpha, sep = ""),
+          fillcolor = base::paste(color, alpha, sep = "")
         ) |>
         dplyr::select(
-          activity, requirement, label, shape, peripheries, penwidth, bordercolor, fillcolor, tooltip, URL
+          activity, requirement, label, shape, peripheries, penwidth, bordercolor, fillcolor, fontcolor, tooltip, URL
         )
       
       for (i in base::seq_len(base::nrow(nodes))) {
@@ -943,7 +1085,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             TRUE ~ 2
           )
         ) |>
-        dplyr::select(origin = laborig, destination = labdest, color, style, penwidth)
+        dplyr::select(origin = laborig, destination = labdest, color, style, penwidth) |>
+        dplyr::mutate(
+          origin = stringr::str_replace_all(origin, "_", "\n"),
+          destination = stringr::str_replace_all(destination, "_", "\n")
+        )
       
       for (i in base::seq_len(base::nrow(edges))) {
         activity_graph <- DiagrammeR::add_edge(
@@ -957,16 +1103,17 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::mutate(
           shape = nodes$shape,
           width = 0.8,
-          height = 0.7,
+          height = 0.8,
           fontsize = 10,
           style = "filled",
-          color = base::paste0(nodes$bordercolor),
-          fillcolor = base::paste0(nodes$fillcolor),
-          fontcolor = "black",
+          color = nodes$bordercolor,
+          fillcolor = nodes$fillcolor,
+          fontcolor = nodes$fontcolor,
           penwidth = nodes$penwidth,
           tooltip = nodes$tooltip,
           URL = nodes$URL,
-          peripheries = nodes$peripheries
+          peripheries = nodes$peripheries,
+          activity = nodes$activity
         )
       
       base::set.seed(input$defseedactivities)
@@ -985,6 +1132,450 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       activity_graph$nodes_df$x <- layout[,1] / input$defscalingactivities
       activity_graph$nodes_df$y <- layout[,2] / input$defscalingactivities
       
+      activity_graph
+    })
+    
+    output$activitymap <- shiny::renderUI({
+      shiny::req(!base::is.null(activity_graph()))
+      DiagrammeR::render_graph(
+        activity_graph(),
+        width = "1600px",
+        height = "800px",
+        as_svg = TRUE
+      )
+    })
+    
+    
+    
+    # ANALYSES OF DESIGN #######################################################
+    
+    prepactivities <- shiny::reactive({
+      shiny::req(!base::is.null(outcomelist()))
+      shiny::req(base::nrow(outcomelist()) > 1)
+      shiny::req(!base::is.null(activity_labels()))
+      
+      outcomes <- outcomelist() |>
+        dplyr::mutate(
+          order = -base::as.numeric(order),
+          label = stringr::str_replace_all(label, "_", " "),
+          label = base::as.factor(label),
+          label = forcats::fct_reorder(label, order, base::mean)
+        )
+      
+      activity_labels() |>
+        dplyr::mutate(
+          order = base::as.numeric(order),
+          label = stringr::str_replace_all(label, "_", " "),
+          label = base::as.factor(label),
+          label = forcats::fct_reorder(label, order, base::mean)
+        ) |>
+        dplyr::mutate(object = stringr::str_split(lmsid, pattern = " ")) |>
+        tidyr::unnest(object) |>
+        dplyr::mutate(outcome = stringr::str_split(outcomes, pattern = " ")) |>
+        tidyr::unnest(outcome) |>
+        dplyr::left_join(dplyr::select(outcomes, outcome, outcomelab = label), by = "outcome") |>
+        dplyr::select(
+          object, activity, activitylab = label, outcome = outcomelab, outcomecolor = color,
+          type, requirement, time_space, social, duration, start, end
+        ) |>
+        dplyr::mutate(
+          type = base::factor(type, levels = c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")),
+          requirement = base::factor(requirement, levels = c("NEC","REC","OPT")),
+          time_space = base::factor(time_space, levels = c("SOS","SOL","AOL")),
+          social = base::factor(social, levels = c("GP","TM","IND")),
+          duration = base::as.numeric(duration),
+          start = base::as.Date(start),
+          startweek = base::as.factor(lubridate::week(start)),
+          startday = lubridate::as_date(start),
+          startorder = base::as.numeric(start),
+          end = base::as.Date(end),
+          endweek = base::as.factor(lubridate::week(end)),
+          endday = lubridate::as_date(end),
+          endorder = base::as.numeric(end)
+        ) |>
+        dplyr::mutate(
+          startweek = forcats::fct_reorder(startweek, startorder, base::mean),
+          endweek = forcats::fct_reorder(endweek, endorder, base::mean)
+        ) |>
+        dplyr::select(-startorder, -endorder) |>
+        base::unique()
+    })
+    
+    output$design_selections <- shiny::renderUI({
+      shiny::req(!base::is.null(prepactivities()))
+      shiny::fluidRow(
+        shiny::column(2, shinyWidgets::virtualSelectInput(
+          ns("desfilttype"), "Types:",
+          choices = base::levels(prepactivities()$type),
+          selected = base::levels(prepactivities()$type),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(2, shinyWidgets::virtualSelectInput(
+          ns("desfiltreq"), "Requirements:",
+          choices = base::levels(prepactivities()$requirement),
+          selected = base::levels(prepactivities()$requirement),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(2, shinyWidgets::virtualSelectInput(
+          ns("desfiltts"), "Times and spaces:",
+          choices = base::levels(prepactivities()$time_space),
+          selected = base::levels(prepactivities()$time_space),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(2, shinyWidgets::virtualSelectInput(
+          ns("desfiltsoc"), "Social:",
+          choices = base::levels(prepactivities()$social),
+          selected = base::levels(prepactivities()$social),
+          multiple = TRUE, width = "100%"
+        )),
+        
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("desslctperiod"), "Period:",
+          choices = c("startweek","endweek","startday","endday"),
+          selected = "startweek",
+          multiple = FALSE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("desslctcat"), "Category:",
+          choices = c("type","requirement","time_space","social","startweek","endweek"),
+          selected = "type",
+          multiple = FALSE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("desslctunit"), "Unit:",
+          choices = c("duration","activities"),
+          selected = "duration",
+          multiple = FALSE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("desslctstat"), "Statistic:",
+          choices = c("Units","Deciles","Deviations"),
+          selected = "Units",
+          multiple = FALSE, width = "100%"
+        ))
+      )
+    })
+    
+    desfiltactivities <- shiny::reactive({
+      shiny::req(!base::is.null(prepactivities()))
+      shiny::req(!base::is.null(input$desfilttype))
+      shiny::req(!base::is.null(input$desfiltreq))
+      shiny::req(!base::is.null(input$desfiltts))
+      shiny::req(!base::is.null(input$desfiltsoc))
+      desfiltactivities <- prepactivities() |>
+        dplyr::filter(
+          type %in% input$desfilttype,
+          requirement %in% input$desfiltreq,
+          time_space %in% input$desfiltts,
+          social %in% input$desfiltsoc
+        )
+      shiny::req(!base::is.null(input$desslctperiod))
+      shiny::req(!base::is.null(input$desslctcat))
+      desfiltactivities <- desfiltactivities[,c("outcome","activity",input$desslctperiod,input$desslctcat,"startweek","duration")]
+      base::names(desfiltactivities) <- c("outcome","activity","period","category","startweek","duration")
+      shiny::req(!base::is.null(input$desslctunit))
+      if (input$desslctunit == "duration"){
+        desfiltactivities <- desfiltactivities |>
+          dplyr::select(outcome, activity, period, category, startweek, duration) |>
+          dplyr::mutate(units = duration) |>
+          base::unique()
+      } else {
+        desfiltactivities <- desfiltactivities |>
+          dplyr::select(outcome, activity, period, category, startweek, duration) |>
+          dplyr::mutate(units = 1) |>
+          base::unique()
+      }
+      desfiltactivities
+    })
+    
+    output$design_valueboxes <- shiny::renderUI({
+      shiny::req(!base::is.null(desfiltactivities()))
+      outcomenbr <- desfiltactivities() |>
+        dplyr::select(outcome) |>
+        base::unique() |>
+        base::nrow()
+      activitynbr <- desfiltactivities() |>
+        dplyr::select(activity) |>
+        base::unique() |>
+        base::nrow()
+      hoursnbr <- desfiltactivities() |>
+        dplyr::select(activity, duration) |>
+        base::unique()
+      hoursnbr <- base::round(base::sum(hoursnbr$duration, na.rm = TRUE) / 60,1)
+      weeknbr <- desfiltactivities() |>
+        dplyr::select(startweek) |>
+        base::unique() |>
+        base::nrow()
+      hpw <- base::round(hoursnbr/weeknbr, 1)
+      credits <- base::round(hoursnbr / 25,1)
+      shiny::fluidRow(
+        shinydashboard::valueBox(
+          outcomenbr, "Outcomes",
+          shiny::icon("bullseye"),
+          color = "blue", width = 2
+        ),
+        shinydashboard::valueBox(
+          activitynbr, "Activities",
+          shiny::icon("list-check"),
+          color = "purple", width = 2
+        ),
+        shinydashboard::valueBox(
+          hoursnbr, "Hours",
+          shiny::icon("clock"),
+          color = "red", width = 2
+        ),
+        shinydashboard::valueBox(
+          weeknbr, "Weeks",
+          shiny::icon("calendar-days"),
+          color = "orange", width = 2
+        ),
+        shinydashboard::valueBox(
+          hpw, "Hours per week",
+          shiny::icon("stopwatch"),
+          color = "green", width = 2
+        ),
+        shinydashboard::valueBox(
+          credits, "ECTS Credits",
+          shiny::icon("graduation-cap"),
+          color = "aqua", width = 2
+        )
+      )
+    })
+    
+    output$workload_density <- shiny::renderPlot({
+      shiny::req(!base::is.null(desfiltactivities()))
+      graphbasis <- desfiltactivities() |>
+        dplyr::select(activity, period, category, units) |>
+        base::unique() |>
+        dplyr::group_by(period, category) |>
+        dplyr::summarise(units = base::sum(units))
+      graphbasis |>
+        dplyr::mutate(category = forcats::fct_rev(category)) |>
+        ggplot2::ggplot(ggplot2::aes(x = period, y = units, fill = category)) + 
+        ggplot2::geom_bar(stat = "identity", position = "stack") +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(text = ggplot2::element_text(size = 12))
+    })
+    
+    output$outcomes_heatmap <- shiny::renderPlot({
+      shiny::req(!base::is.null(desfiltactivities()))
+      shiny::req(!base::is.null(input$desslctstat))
+      graphbasis <- desfiltactivities() |>
+        dplyr::select(outcome, activity, category, units) |>
+        base::unique() |>
+        tidyr::complete(category, outcome, fill = base::list(units = 0)) |>
+        dplyr::group_by(activity, category, units) |>
+        dplyr::mutate(outcomenbr = dplyr::n()) |>
+        dplyr::ungroup() |>
+        dplyr::mutate(units = units / outcomenbr) |>
+        dplyr::group_by(outcome, category) |>
+        dplyr::summarise(units = base::sum(units))
+      if (input$desslctstat == "Deciles"){
+        graphbasis <- graphbasis |>
+          dplyr::mutate(units = base::round(dplyr::percent_rank(units)*10,0))
+      } else if (input$desslctstat == "Deviations"){
+        graphbasis <- graphbasis |>
+          dplyr::mutate(units = base::as.numeric(base::scale(units)))
+      } else {
+        graphbasis <- graphbasis
+      }
+      graphbasis |>
+        ggplot2::ggplot(ggplot2::aes(x = category, y = outcome, fill = units)) + 
+        ggplot2::geom_tile(alpha = 0.8) +
+        ggplot2::scale_fill_gradient(low="white", high="forestgreen") +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(
+          text = ggplot2::element_text(size = 12),
+          axis.text.x = ggplot2::element_text(angle = 60, vjust = 0.5, hjust=0.5)
+        )
+    }, height = 700)
+    
+    
+    
+    # ANALYSES OF INTERACTIONS #################################################
+    
+    preplogs <- shiny::reactive({
+      shiny::req(!base::is.null(prepactivities()))
+      shiny::req(base::nrow(reactval$students) > 1)
+      logs <- reactval$interactions |>
+        dplyr::left_join(dplyr::select(reactval$students, subject = userid, fullname), by  ="subject") |>
+        dplyr::left_join(prepactivities(), by  ="object") |>
+        dplyr::mutate(
+          week = lubridate::week(date),
+          day = lubridate::as_date(date),
+          hour = lubridate::hour(date),
+          order = base::as.numeric(date)
+        ) |>
+        dplyr::mutate(
+          week = base::as.factor(week),
+          day = base::as.factor(day),
+        ) |>
+        dplyr::mutate(
+          week = forcats::fct_reorder(week, order, base::mean),
+          day = forcats::fct_reorder(day, order, base::mean)
+        ) |>
+        dplyr::select(-order)
+    })
+    
+    output$displaylogs <- DT::renderDataTable({
+      shiny::req(!base::is.null(preplogs()))
+      preplogs()
+    }, filter="top", options = base::list(pageLength = 10, scrollX = TRUE), rownames= FALSE)
+    
+    output$log_selections <- shiny::renderUI({
+      shiny::req(!base::is.null(preplogs()))
+      
+      prepstudentchoices <- preplogs() |>
+        dplyr::select(subject, fullname) |>
+        dplyr::arrange(fullname) |>
+        base::unique()
+      studentchoices <- prepstudentchoices$subject
+      base::names(studentchoices) <- prepstudentchoices$fullname
+      
+      shiny::fluidRow(
+        shiny::column(3, shinyWidgets::virtualSelectInput(
+          ns("logslctstudent"), "Students:",
+          choices = studentchoices,
+          selected = studentchoices,
+          multiple = TRUE, width = "100%"
+        )),
+        
+        shiny::column(2, shinyWidgets::virtualSelectInput(
+          ns("logfilttype"), "Types:",
+          choices = base::levels(preplogs()$type),
+          selected = base::levels(preplogs()$type),
+          multiple = TRUE, width = "100%"
+        )),
+        
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logfiltreq"), "Requirements:",
+          choices = base::levels(preplogs()$requirement),
+          selected = base::levels(preplogs()$requirement),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logfiltts"), "Time-space:",
+          choices = base::levels(preplogs()$time_space),
+          selected = base::levels(preplogs()$time_space),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logfiltsoc"), "Social:",
+          choices = base::levels(preplogs()$social),
+          selected = base::levels(preplogs()$social),
+          multiple = TRUE, width = "100%"
+        )),
+        
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logslctcat"), "Category:",
+          choices = c("type","requirement","time_space","social","week"),
+          selected = "type",
+          multiple = FALSE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logslctperiod"), "Period:",
+          choices = c("week","day"),
+          selected = "week",
+          multiple = FALSE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logslctunit"), "Aggregation:",
+          choices = c("day","hour","log"),
+          selected = "log",
+          multiple = FALSE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logslctstat"), "Statistic:",
+          choices = c("units","deciles","deviations"),
+          selected = "units",
+          multiple = FALSE, width = "100%"
+        ))
+      )
+    })
+    
+    filteredlogs <- shiny::reactive({
+      shiny::req(!base::is.null(preplogs()))
+      shiny::req(!base::is.null(input$logslctstudent))
+      shiny::req(!base::is.null(input$logfilttype))
+      shiny::req(!base::is.null(input$logfiltreq))
+      shiny::req(!base::is.null(input$logfiltts))
+      shiny::req(!base::is.null(input$logfiltsoc))
+      shiny::req(!base::is.null(input$logslctcat))
+      shiny::req(!base::is.null(input$logslctperiod))
+      shiny::req(!base::is.null(input$logslctunit))
+      filteredlogs <- preplogs() |>
+        dplyr::filter(
+          subject %in% input$logslctstudent,
+          type %in% input$logfilttype,
+          requirement %in% input$logfiltreq,
+          time_space %in% input$logfiltts,
+          social %in% input$logfiltsoc
+        )
+      filteredlogs <- filteredlogs[,c("subject","activity",input$logslctcat,input$logslctperiod,input$logslctunit)]
+      base::names(filteredlogs) <- c("subject","activity","category","period","units")
+      filteredlogs |>
+        base::unique()
+    })
+    
+    output$interaction_count <- shiny::renderPlot({
+      shiny::req(!base::is.null(filteredlogs()))
+      filteredlogs() |>
+        dplyr::mutate(units = 1) |>
+        dplyr::group_by(category,period) |>
+        dplyr::summarise(units = base::sum(units)) |>
+        dplyr::ungroup() |>
+        ggplot2::ggplot(ggplot2::aes(x = period, y = units, fill = category)) +
+        ggplot2::geom_bar(stat = "identity", position = "stack") +
+        ggplot2::theme_light() +
+        ggplot2::theme(
+          legend.position = "top",
+          text = ggplot2::element_text(size = 12),
+          axis.text.x = ggplot2::element_text(angle = 60, vjust = 0.5, hjust=0.5)
+        )
+    })
+    
+    output$weekslider <- shiny::renderUI({
+      shiny::req(!base::is.null(filteredlogs()))
+      periods <- base::levels(filteredlogs()$period)
+      shinyWidgets::sliderTextInput(
+        inputId = ns("temprange"),
+        label = "Choose a range:", 
+        choices = periods,
+        selected = periods[c(1, base::length(periods))],
+        width = "100%"
+      )
+    })
+    
+    output$lognetwork <- shiny::renderUI({
+      shiny::req(!base::is.null(activity_graph()))
+      shiny::req(!base::is.null(filteredlogs()))
+      shiny::req(!base::is.null(input$temprange))
+      shiny::req(!base::is.null(input$logslctstat))
+      
+      removebelow <- base::match(input$temprange[1], base::levels(filteredlogs()$period))
+      removeabove <- base::match(input$temprange[2], base::levels(filteredlogs()$period))
+      
+      sizes <- filteredlogs() |>
+        dplyr::mutate(period = base::as.integer(period)) |>
+        dplyr::filter(period >= removebelow, period <= removeabove) |>
+        dplyr::mutate(units = 1) |>
+        dplyr::group_by(activity) |>
+        dplyr::summarise(units = base::sum(units)) |>
+        dplyr::ungroup() |>
+        dplyr::mutate(deciles = base::round(dplyr::percent_rank(units)*10,0)) |>
+        dplyr::mutate(deviations = base::as.numeric(base::scale(units))) |>
+        dplyr::mutate_if(base::is.numeric, function(x){
+          0.1 + (x - base::min(x)) / (base::max(x) - base::min(x))
+        }) |>
+        dplyr::select(activity, width = dplyr::all_of(input$logslctstat)) |>
+        dplyr::mutate(height = width, fontsize = 12 * width)
+      
+      activity_graph <- activity_graph()
+      activity_graph$nodes_df <- activity_graph$nodes_df |>
+        dplyr::select(-width, -height, -fontsize) |>
+        dplyr::left_join(sizes, by = "activity") |>
+        tidyr::replace_na(base::list(width = 0.1, height = 0.1, fontsize = 1))
+      
       DiagrammeR::render_graph(
         activity_graph,
         width = "1600px",
@@ -994,88 +1585,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     
-    
-    # PREPARE ANALYSES #########################################################
-    
-    prepare_students <- shiny::reactive({
-      reactval$students |>
-        dplyr::select(subject = userid, fullname)
-    })
-    
-    prepare_activities <- shiny::reactive({
-      shiny::req(!base::is.null(activity_labels()))
-      activity_labels() |>
-        dplyr::mutate(object = stringr::str_split(lmsid, pattern = " ")) |>
-        tidyr::unnest(object)
-    })
-    
-    
-    
-    # ANALYSES OF DESIGN #######################################################
-    
-    output$outcomes_heatmap <- shiny::renderPlot({
-      shiny::req(!base::is.null(outcome_labels()))
-      shiny::req(!base::is.null(prepare_activities()))
-      
-      outcomes <- outcome_labels() |>
-        dplyr::select(outcome, outcomelab = label) |>
-        dplyr::mutate(outcomelab = stringr::str_replace_all(outcomelab, "_", " "))
-      activities <- prepare_activities() |>
-        dplyr::mutate(outcome = stringr::str_split(outcomes, pattern = " ")) |>
-        tidyr::unnest(outcome) |>
-        dplyr::left_join(outcomes, by = "outcome") |>
-        dplyr::select(activity, outcome, outcomelab, type) |>
-        base::unique()
-      
-      activities |>
-        dplyr::group_by(outcome, outcomelab, type) |>
-        dplyr::count() |>
-        dplyr::mutate() |>
-        ggplot2::ggplot(ggplot2::aes(x = type, y = outcomelab, fill = n)) + 
-        ggplot2::geom_tile() +
-        ggplot2::scale_fill_gradient(low="yellow", high="forestgreen") +
-        ggplot2::theme_minimal() +
-        ggplot2::theme(text = ggplot2::element_text(size = 15))
-    }, height = 700)
-    
-    
-    
-    # ANALYSES OF INTERACTIONS #################################################
-    
-    output$interaction_count <- shiny::renderPlot({
-      shiny::req(base::nrow(reactval$interactions) > 3)
-      shiny::req(!base::is.null(prepare_students()))
-      shiny::req(!base::is.null(prepare_activities()))
-      
-      logs <- reactval$interactions |>
-        dplyr::left_join(prepare_students(), by = "subject") |>
-        dplyr::left_join(prepare_activities(), by = "object")
-        
-        #dplyr::filter(subject == "13991") |>
-        #dplyr::filter(type != "quiz") |>
-      
-      logs |>
-        dplyr::mutate(
-          week = base::as.factor(lubridate::week(date)),
-          day = base::as.numeric(date)
-        ) |>
-        dplyr::mutate(week = forcats::fct_reorder(week, day, mean)) |>
-        dplyr::select(week, log, category = type) |>
-        base::unique() |>
-        stats::na.omit() |>
-        ggplot2::ggplot(ggplot2::aes(x = week, fill = category)) +
-        ggplot2::geom_bar(stat = "count", position = "stack") +
-        ggplot2::theme_light() +
-        ggplot2::theme(legend.position = "top")
-    })
-    
-    
-    
-    
     # EXPORT ###################################################################
     # Save on disk or export
     
     shiny::observeEvent(input$savepaths, {
+      shiny::req(base::length(course_paths()) == 2)
+      shiny::req(base::length(tree()) == 4)
       writexl::write_xlsx(
         base::list(
           outcomes = reactval$outcomes,
@@ -1099,10 +1614,31 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     shiny::observeEvent(input$openpaths, {
-      base::system2(pathfile())
+      shiny::req(base::length(course_paths()) == 2)
+      shiny::req(base::length(tree()) == 4)
+      if (base::Sys.info()[1] == "Windows"){
+        base::shell.exec(pathfile())
+      } else {
+        base::system2(pathfile())
+      }
+    })
+    
+    shiny::observeEvent(input$openfolder, {
+      shiny::req(base::length(course_paths()) == 2)
+      shiny::req(base::length(tree()) == 4)
+      folder <- course_paths()$subfolders$paths
+      if (base::dir.exists(folder)){
+        if (.Platform['OS.type'] == "windows"){
+          shell.exec(folder)
+        } else {
+          system2("open", folder)
+        }
+      }
     })
     
     shiny::observeEvent(input$exportpaths, {
+      shiny::req(base::length(course_paths()) == 2)
+      shiny::req(base::length(tree()) == 4)
       
     })
     

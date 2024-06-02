@@ -4,11 +4,13 @@
 #' @description Module facilitating the design and visualization or a complete learning experience.
 #' @param id Character. ID of the module to connect the user interface to the appropriate server side.
 #' @return Save the new or modified document in the original documents folder.
+#' @importFrom DT dataTableOutput
 #' @importFrom editR selection_ui
 #' @importFrom rhandsontable rHandsontableOutput
 #' @importFrom shiny NS
 #' @importFrom shiny actionButton
 #' @importFrom shiny column
+#' @importFrom shiny fluidPage
 #' @importFrom shiny fluidRow
 #' @importFrom shiny icon
 #' @importFrom shiny numericInput
@@ -26,7 +28,7 @@ design_path_ui <- function(id){
   ns <- shiny::NS(id)
   base::list(
     shiny::fluidRow(
-      shiny::column(6, shiny::uiOutput(ns("slctlanguage"))),
+      shiny::column(4, shiny::uiOutput(ns("slctlanguage"))),
       shiny::column(2, shiny::actionButton(
         ns("savepaths"), "Save",
         icon = shiny::icon("floppy-disk"),
@@ -35,6 +37,11 @@ design_path_ui <- function(id){
       shiny::column(2, shiny::actionButton(
         ns("openpaths"), "Open",
         icon = shiny::icon("file-excel"),
+        style = "width:100%;color:#FFFFFF;background-color:#006666;"
+      )),
+      shiny::column(2, shiny::actionButton(
+        ns("openfolder"), "Folder",
+        icon = shiny::icon("folder-open"),
         style = "width:100%;color:#FFFFFF;background-color:#003399;"
       )),
       shiny::column(2, shiny::actionButton(
@@ -170,18 +177,19 @@ design_path_ui <- function(id){
           shiny::icon("scale-balanced"), "Design",
           title = "Check whether the learning experience design covers properly the learning outcomes and is well balanced."
         ),
+        shiny::uiOutput(ns("design_selections")),
+        shiny::uiOutput(ns("design_valueboxes")),
+        shiny::plotOutput(ns("workload_density")),
         shiny::plotOutput(ns("outcomes_heatmap")) 
-      ),
-      shiny::tabPanel(
-        title = shiny::span(
-          shiny::icon("user-graduate"), "Students",
-          title = "Student list."
-        )
       ),
       shiny::tabPanel(
         title = shiny::span(
           shiny::icon("keyboard"), "Interactions",
           title = "Logs grom the learning management system."
+        ),
+        shiny::fluidPage(
+          style = "font-size: 75%;",
+          shiny::column(12, DT::dataTableOutput(ns("displaylogs")))
         )
       ),
       shiny::tabPanel(
@@ -189,7 +197,10 @@ design_path_ui <- function(id){
           shiny::icon("heart-pulse"), "Experiences",
           title = "Visualize students' interactions with the learning materials."
         ),
-        shiny::plotOutput(ns("interaction_count"))
+        shiny::uiOutput(ns("log_selections")),
+        shiny::plotOutput(ns("interaction_count")),
+        shiny::uiOutput(ns("weekslider")),
+        shiny::uiOutput(ns("lognetwork"))
       )
     )
   )
