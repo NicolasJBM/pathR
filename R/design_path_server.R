@@ -32,6 +32,7 @@
 #' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
 #' @importFrom editR selection_server
+#' @importFrom fmsb radarchart
 #' @importFrom forcats fct_reorder
 #' @importFrom forcats fct_rev
 #' @importFrom ggplot2 aes
@@ -88,10 +89,13 @@
 #' @importFrom stringr str_replace
 #' @importFrom stringr str_replace_all
 #' @importFrom stringr str_split
+#' @importFrom tibble column_to_rownames
 #' @importFrom tibble tibble
 #' @importFrom tibble tribble
 #' @importFrom tidyr complete
 #' @importFrom tidyr nest
+#' @importFrom tidyr pivot_longer
+#' @importFrom tidyr pivot_wider
 #' @importFrom tidyr replace_na
 #' @importFrom tidyr unnest
 #' @importFrom writexl write_xlsx
@@ -171,6 +175,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     subject <- NULL
     width <- NULL
     fontsize <- NULL
+    
+    
+    avg <- NULL
+    high <- NULL
+    low <- NULL
+    sdev <- NULL
+    student <- NULL
     
     
     # DATA #####################################################################
@@ -1583,6 +1594,80 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         as_svg = TRUE
       )
     })
+    
+    output$learning_profiles <- shiny::renderPlot({
+      shiny::req(!base::is.null(preplogs()))
+      shiny::req(!base::is.null(input$logslctstudent))
+      shiny::req(!base::is.null(input$logfilttype))
+      shiny::req(!base::is.null(input$logfiltreq))
+      shiny::req(!base::is.null(input$logfiltts))
+      shiny::req(!base::is.null(input$logfiltsoc))
+      shiny::req(!base::is.null(input$logslctcat))
+      shiny::req(!base::is.null(input$logslctperiod))
+      shiny::req(!base::is.null(input$logslctunit))
+      shiny::req(!base::is.null(input$temprange))
+      
+      filteredlogs <- preplogs() |>
+        dplyr::filter(
+          type %in% input$logfilttype,
+          requirement %in% input$logfiltreq,
+          time_space %in% input$logfiltts,
+          social %in% input$logfiltsoc
+        )
+      filteredlogs <- filteredlogs[,c("subject","activity",input$logslctcat,input$logslctperiod,input$logslctunit)]
+      base::names(filteredlogs) <- c("subject","activity","category","period","units")
+      filteredlogs |>
+        base::unique()
+      
+      removebelow <- base::match(input$temprange[1], base::levels(filteredlogs()$period))
+      removeabove <- base::match(input$temprange[2], base::levels(filteredlogs()$period))
+      
+      profiles_in_window <- filteredlogs() |>
+        stats::na.omit() |>
+        dplyr::mutate(
+          period = base::as.integer(period),
+          units = base::as.numeric(units)
+        ) |>
+        dplyr::filter(period >= removebelow, period <= removeabove) |>
+        dplyr::group_by(subject, category) |>
+        dplyr::summarise(units = base::sum(units), .groups = "drop")
+      
+      aggregated_profiles <- profiles_in_window |>
+        dplyr::group_by(category) |>
+        dplyr::summarise(
+          avg = base::mean(units),
+          sdev = stats::sd(units),
+          .groups = "drop"
+        ) |>
+        dplyr::mutate(
+          max = base::max(avg),
+          min = base::min(avg),
+          low = avg - sdev,
+          high = avg + sdev
+        ) |>
+        dplyr::select(category, max, min, low, avg, high) |>
+        tidyr::pivot_longer(cols = c("max","min","low","avg","high"), names_to = "subject", values_to = "units")
+      
+      selected_profiles <- profiles_in_window |>
+        dplyr::filter(subject %in% input$logslctstudent)
+      if (base::length(input$logslctstudent) > 3){
+        selected_profiles <-selected_profiles |>
+          dplyr::sample_n(2)
+      }
+      
+      dplyr::bind_rows(aggregated_profiles, selected_profiles)  |>
+        tidyr::pivot_wider(names_from = "category", values_from = "units") |>
+        base::unique() |>
+        tibble::column_to_rownames("subject") |>
+        fmsb::radarchart(
+          maxmin = TRUE,
+          plwd = c(1,2,1,4,4),
+          pch = 10,
+          plty = c(3,2,3,1,1),
+          pcol = c(1,1,1,3,4)
+        )
+    }, height = 500)
+    
     
     
     # EXPORT ###################################################################

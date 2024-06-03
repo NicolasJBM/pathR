@@ -200,7 +200,8 @@ design_path_ui <- function(id){
         shiny::uiOutput(ns("log_selections")),
         shiny::plotOutput(ns("interaction_count")),
         shiny::uiOutput(ns("weekslider")),
-        shiny::uiOutput(ns("lognetwork"))
+        shiny::uiOutput(ns("lognetwork")),
+        shiny::plotOutput(ns("learning_profiles"))
       )
     )
   )
