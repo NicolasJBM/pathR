@@ -32,18 +32,25 @@
 #' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
 #' @importFrom editR selection_server
-#' @importFrom fmsb radarchart
 #' @importFrom forcats fct_reorder
 #' @importFrom forcats fct_rev
 #' @importFrom ggplot2 aes
 #' @importFrom ggplot2 element_text
+#' @importFrom ggplot2 fill_alpha
 #' @importFrom ggplot2 geom_bar
+#' @importFrom ggplot2 geom_polygon
 #' @importFrom ggplot2 geom_tile
 #' @importFrom ggplot2 ggplot
+#' @importFrom ggplot2 ggproto
+#' @importFrom ggplot2 guides
+#' @importFrom ggplot2 scale_color_manual
 #' @importFrom ggplot2 scale_fill_gradient
+#' @importFrom ggplot2 scale_fill_manual
+#' @importFrom ggplot2 scale_linewidth
 #' @importFrom ggplot2 theme
 #' @importFrom ggplot2 theme_light
 #' @importFrom ggplot2 theme_minimal
+#' @importFrom ggplot2 ylim
 #' @importFrom igraph layout_with_dh
 #' @importFrom igraph layout_with_drl
 #' @importFrom igraph layout_with_fr
@@ -89,13 +96,11 @@
 #' @importFrom stringr str_replace
 #' @importFrom stringr str_replace_all
 #' @importFrom stringr str_split
-#' @importFrom tibble column_to_rownames
 #' @importFrom tibble tibble
 #' @importFrom tibble tribble
 #' @importFrom tidyr complete
 #' @importFrom tidyr nest
 #' @importFrom tidyr pivot_longer
-#' @importFrom tidyr pivot_wider
 #' @importFrom tidyr replace_na
 #' @importFrom tidyr unnest
 #' @importFrom writexl write_xlsx
@@ -175,13 +180,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     subject <- NULL
     width <- NULL
     fontsize <- NULL
-    
-    
     avg <- NULL
     high <- NULL
     low <- NULL
     sdev <- NULL
     student <- NULL
+    lty <- NULL
+    lwd <- NULL
     
     
     # DATA #####################################################################
@@ -1492,7 +1497,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("logslctunit"), "Aggregation:",
           choices = c("day","hour","log"),
-          selected = "log",
+          selected = "hour",
           multiple = FALSE, width = "100%"
         )),
         shiny::column(1, shinyWidgets::virtualSelectInput(
@@ -1504,9 +1509,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
-    filteredlogs <- shiny::reactive({
+    prefilteredlogs <- shiny::reactive({
       shiny::req(!base::is.null(preplogs()))
-      shiny::req(!base::is.null(input$logslctstudent))
       shiny::req(!base::is.null(input$logfilttype))
       shiny::req(!base::is.null(input$logfiltreq))
       shiny::req(!base::is.null(input$logfiltts))
@@ -1514,17 +1518,23 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(!base::is.null(input$logslctcat))
       shiny::req(!base::is.null(input$logslctperiod))
       shiny::req(!base::is.null(input$logslctunit))
-      filteredlogs <- preplogs() |>
+      prefilteredlogs <- preplogs() |>
         dplyr::filter(
-          subject %in% input$logslctstudent,
           type %in% input$logfilttype,
           requirement %in% input$logfiltreq,
           time_space %in% input$logfiltts,
           social %in% input$logfiltsoc
         )
-      filteredlogs <- filteredlogs[,c("subject","activity",input$logslctcat,input$logslctperiod,input$logslctunit)]
-      base::names(filteredlogs) <- c("subject","activity","category","period","units")
-      filteredlogs |>
+      prefilteredlogs <- prefilteredlogs[,c("subject","activity",input$logslctcat,input$logslctperiod,input$logslctunit)]
+      base::names(prefilteredlogs) <- c("subject","activity","category","period","units")
+      base::unique(prefilteredlogs)
+    })
+    
+    filteredlogs <- shiny::reactive({
+      shiny::req(!base::is.null(prefilteredlogs()))
+      shiny::req(!base::is.null(input$logslctstudent))
+      filteredlogs <- prefilteredlogs() |>
+        dplyr::filter(subject %in% input$logslctstudent) |>
         base::unique()
     })
     
@@ -1596,33 +1606,14 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     output$learning_profiles <- shiny::renderPlot({
-      shiny::req(!base::is.null(preplogs()))
+      shiny::req(!base::is.null(prefilteredlogs()))
       shiny::req(!base::is.null(input$logslctstudent))
-      shiny::req(!base::is.null(input$logfilttype))
-      shiny::req(!base::is.null(input$logfiltreq))
-      shiny::req(!base::is.null(input$logfiltts))
-      shiny::req(!base::is.null(input$logfiltsoc))
-      shiny::req(!base::is.null(input$logslctcat))
-      shiny::req(!base::is.null(input$logslctperiod))
-      shiny::req(!base::is.null(input$logslctunit))
       shiny::req(!base::is.null(input$temprange))
-      
-      filteredlogs <- preplogs() |>
-        dplyr::filter(
-          type %in% input$logfilttype,
-          requirement %in% input$logfiltreq,
-          time_space %in% input$logfiltts,
-          social %in% input$logfiltsoc
-        )
-      filteredlogs <- filteredlogs[,c("subject","activity",input$logslctcat,input$logslctperiod,input$logslctunit)]
-      base::names(filteredlogs) <- c("subject","activity","category","period","units")
-      filteredlogs |>
-        base::unique()
       
       removebelow <- base::match(input$temprange[1], base::levels(filteredlogs()$period))
       removeabove <- base::match(input$temprange[2], base::levels(filteredlogs()$period))
       
-      profiles_in_window <- filteredlogs() |>
+      profiles_in_window <- prefilteredlogs() |>
         stats::na.omit() |>
         dplyr::mutate(
           period = base::as.integer(period),
@@ -1640,32 +1631,93 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           .groups = "drop"
         ) |>
         dplyr::mutate(
-          max = base::max(avg),
-          min = base::min(avg),
           low = avg - sdev,
           high = avg + sdev
         ) |>
-        dplyr::select(category, max, min, low, avg, high) |>
-        tidyr::pivot_longer(cols = c("max","min","low","avg","high"), names_to = "subject", values_to = "units")
+        dplyr::select(category, low, avg, high) |>
+        tidyr::pivot_longer(
+          cols = c("low","avg","high"),
+          names_to = "subject", values_to = "units"
+        ) |>
+        dplyr::mutate(
+          lwd = dplyr::case_when(
+            subject == "avg" ~ 3,
+            TRUE ~ 2
+          ),
+          lty = dplyr::case_when(
+            subject == "avg" ~ 3,
+            TRUE ~ 2
+          ),
+          col = dplyr::case_when(
+            subject == "low" ~ 1,
+            subject == "avg" ~ 2,
+            TRUE ~ 3
+          )
+        ) |>
+        dplyr::select(subject, category, units, lty, col, lwd)
       
       selected_profiles <- profiles_in_window |>
-        dplyr::filter(subject %in% input$logslctstudent)
-      if (base::length(input$logslctstudent) > 3){
-        selected_profiles <-selected_profiles |>
-          dplyr::sample_n(2)
+        dplyr::filter(subject %in% base::unique(base::sample(
+          input$logslctstudent, base::min(base::length(input$logslctstudent),6)
+        ))) |>
+        dplyr::mutate(
+          lwd = 10, lty = 1,
+          col = 3 + base::as.numeric(base::as.factor(subject))
+        ) |>
+        dplyr::left_join(dplyr::select(reactval$students, subject = userid, fullname), by = "subject") |>
+        dplyr::select(subject = fullname, category, units, lty, col, lwd)
+      
+      radarbase <- dplyr::bind_rows(aggregated_profiles, selected_profiles) |>
+        base::unique() |>
+        dplyr::mutate(
+          subject = base::as.factor(subject),
+          subject = forcats::fct_reorder(subject, col, mean),
+          lty = base::factor(lty, levels = c(1:3))
+        ) |>
+        tidyr::replace_na(base::list(units = 0)) |>
+        dplyr::mutate(
+          category = base::as.factor(category),
+          category = forcats::fct_reorder(category, units, base::mean)
+        ) |>
+        dplyr::arrange(category)
+      
+      colors <- c(
+        "#999999","#333333","#999999",
+        "#770000","#007700","#000077",
+        "#770077","#007777","#777700"
+      )
+      
+      coord_radar <- function (theta = "x", start = 0, direction = 1){
+        theta <- base::match.arg(theta, c("x", "y"))
+        r <- if (theta == "x") 
+          "y"
+        else "x"
+        ggplot2::ggproto(
+          "CordRadar", ggplot2::CoordPolar,
+          theta = theta, r = r, start = start,
+          direction = base::sign(direction),
+          is_linear = function(coord) TRUE
+        )
       }
       
-      dplyr::bind_rows(aggregated_profiles, selected_profiles)  |>
-        tidyr::pivot_wider(names_from = "category", values_from = "units") |>
-        base::unique() |>
-        tibble::column_to_rownames("subject") |>
-        fmsb::radarchart(
-          maxmin = TRUE,
-          plwd = c(1,2,1,4,4),
-          pch = 10,
-          plty = c(3,2,3,1,1),
-          pcol = c(1,1,1,3,4)
-        )
+      radarbase |>
+        ggplot2::ggplot(ggplot2::aes(
+          x = category, y = units,
+          group = subject, color = subject, fill = subject,
+          linewidth = lwd, linetype = lty
+        )) +
+        ggplot2::geom_polygon() +
+        coord_radar() +
+        ggplot2::scale_linewidth(limits = c(0,30)) +
+        ggplot2::theme_minimal() +
+        ggplot2::scale_color_manual(values = colors) +
+        ggplot2::scale_fill_manual(values = c(
+          ggplot2::fill_alpha(colors[1:3], 0.01),
+          ggplot2::fill_alpha(colors[4:9], 0.1)
+        )) +
+        ggplot2::guides(linewidth = "none", linetype = "none") +
+        ggplot2::ylim(-base::max(radarbase$units)/10, base::max(radarbase$units))
+        
     }, height = 500)
     
     
@@ -1691,7 +1743,6 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         ),
         path = pathfile()
       )
-      
       shinyalert::shinyalert(
         "Saved!", "Your learning map and paths have been saved on disk.",
         type = "success"
