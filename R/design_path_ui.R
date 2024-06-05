@@ -86,24 +86,26 @@ design_path_ui <- function(id){
           )
         ),
         shiny::fluidRow(
-          shiny::column(4, shiny::selectInput(
+          shiny::column(2, shiny::selectInput(
             ns("slctlayoutoutcomes"), "Layout",
             choices = c("dh","drl","fr","graphopt","kk"),
             selected = "fr",
             width = "100%"
           )),
-          shiny::column(4, shiny::numericInput(
+          shiny::column(2, shiny::numericInput(
             ns("defseedoutcomes"), "Seed",
             value = 1, min = 1, max = 1000, step = 1,
             width = "100%"
           )),
-          shiny::column(4, shiny::numericInput(
+          shiny::column(2, shiny::numericInput(
             ns("defscalingoutcomes"), "Scale",
             value = 1, min = 0.01, max = 100, step = 0.01,
             width = "100%"
-          ))
+          )),
+          shiny::column(6, shiny::uiOutput(ns("egooutcomeselection")))
         ),
-        shiny::uiOutput(ns("outcomemap"))
+        shiny::uiOutput(ns("outcomemap")),
+        DT::dataTableOutput(ns("outcometable"))
       ),
       shiny::tabPanel(
         title = shiny::span(
@@ -153,24 +155,26 @@ design_path_ui <- function(id){
           )
         ),
         shiny::fluidRow(
-          shiny::column(4, shiny::selectInput(
+          shiny::column(2, shiny::selectInput(
             ns("slctlayoutactivities"), "Layout",
             choices = c("dh","drl","fr","graphopt","kk"),
             selected = "fr",
             width = "100%"
           )),
-          shiny::column(4, shiny::numericInput(
+          shiny::column(2, shiny::numericInput(
             ns("defseedactivities"), "Seed",
             value = 1, min = 1, max = 1000, step = 1,
             width = "100%"
           )),
-          shiny::column(4, shiny::numericInput(
+          shiny::column(2, shiny::numericInput(
             ns("defscalingactivities"), "Scale",
             value = 1, min = 0.1, max = 100, step = 0.1,
             width = "100%"
-          ))
+          )),
+          shiny::column(6, shiny::uiOutput(ns("egoactivityselection")))
         ),
-        shiny::uiOutput(ns("activitymap"))
+        shiny::uiOutput(ns("activitymap")),
+        DT::dataTableOutput(ns("activitytable"))
       ),
       shiny::tabPanel(
         title = shiny::span(

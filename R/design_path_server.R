@@ -51,11 +51,22 @@
 #' @importFrom ggplot2 theme_light
 #' @importFrom ggplot2 theme_minimal
 #' @importFrom ggplot2 ylim
+#' @importFrom igraph authority_score
+#' @importFrom igraph betweenness
+#' @importFrom igraph closeness
+#' @importFrom igraph constraint
+#' @importFrom igraph degree
+#' @importFrom igraph eigen_centrality
+#' @importFrom igraph harmonic_centrality
+#' @importFrom igraph hub_score
 #' @importFrom igraph layout_with_dh
 #' @importFrom igraph layout_with_drl
 #' @importFrom igraph layout_with_fr
 #' @importFrom igraph layout_with_graphopt
 #' @importFrom igraph layout_with_kk
+#' @importFrom igraph power_centrality
+#' @importFrom igraph strength
+#' @importFrom igraph vertex_attr
 #' @importFrom lubridate as_date
 #' @importFrom lubridate hour
 #' @importFrom lubridate week
@@ -171,6 +182,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     start <- NULL
     startday <- NULL
     startweek <- NULL
+    level <- NULL
     time_space <- NULL
     outcomenbr <- NULL
     endorder <- NULL
@@ -187,6 +199,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     student <- NULL
     lty <- NULL
     lwd <- NULL
+    levlab <- NULL
+    from <- NULL
+    to <- NULL
     
     
     # DATA #####################################################################
@@ -270,6 +285,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           resource = base::as.character(NA),
           requirement = base::as.character(NA),
           weigth = base::as.character(NA),
+          level = base::as.character(NA),
           time_space = base::as.character(NA),
           social = base::as.character(NA),
           duration = base::as.character(NA),
@@ -278,6 +294,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         )
         reactval$attributes <- tibble::tribble(
           ~"attribute", ~"value", ~"language", ~"label", ~"icon",
+          "level", "NOV", "US", "Novice", "child-reaching",
+          "level", "APP", "US", "Apprentice", "user",
+          "level", "PRO", "US", "Professional", "user-tie",
+          "level", "MAS", "US", "Master", "user-ninja",
+          "level", "EXP", "US", "Expert", "user-doctor",
           "social", "IND", "US", "Individual", "user",
           "social", "TM", "US", "Team", "user-plus",
           "social", "GP", "US", "Group", "people-group",
@@ -287,6 +308,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           "requirement", "OPT", "US", "Optional", "circle-question",
           "requirement", "REC", "US", "Recommended", "circle-xmark",
           "requirement", "NEC", "US", "Necessary", "circle-exclamation",
+          "level", "NOV", "FR", "Novice", "child-reaching",
+          "level", "APP", "FR", "Apprenti", "user",
+          "level", "PRO", "FR", "Professionnel", "user-tie",
+          "level", "MAS", "FR", "Maitre", "user-ninja",
+          "level", "EXP", "FR", "Expert", "user-doctor",
           "social", "IND", "FR", "Individuel", "user",
           "social", "TM", "FR", "Equipe", "user-plus",
           "social", "GP", "FR", "Groupe", "people-group",
@@ -505,6 +531,27 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     
     # Visualize the outcome map.
     
+    output$egooutcomeselection <- shiny::renderUI({
+      shiny::req(!base::is.null(outcomelist()))
+      outcomes <- outcomelist() |>
+        dplyr::select(outcome, label, color) |>
+        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
+      outcomechoices <- outcomes$outcome
+      base::names(outcomechoices) <- outcomes$label
+      outcomecolors <- base::paste0(
+        "color: #FFFFFF; background: ", outcomes$color,";"
+      )
+      shinyWidgets::pickerInput(
+        inputId = ns("slctegooutcome"),
+        label = "Focus on outcomes:", 
+        choices = outcomechoices,
+        selected = NULL,
+        choicesOpt = base::list(style = outcomecolors),
+        multiple = TRUE,
+        width = "100%"
+      )
+    })
+    
     outcome_graph <- shiny::reactive({
       shiny::req(base::nrow(reactval$outlabels) > 1)
       shiny::req(base::nrow(reactval$outcomes) > 1)
@@ -526,7 +573,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           tooltip = base::paste(simplelab, description, sep = "\n\n"),
           tooltip = base::paste(tooltip, outcome, sep = "\n\n")
         ) |>
-        dplyr::select(label, shape, color, tooltip, URL) |>
+        dplyr::select(outcome, label, shape, color, tooltip, URL) |>
         dplyr::mutate(label = stringr::str_replace_all(label, "_", "\n"))
       
       for (i in base::seq_len(base::nrow(nodes))) {
@@ -564,10 +611,25 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           fontcolor = "black",
           penwidth = 3,
           tooltip = nodes$tooltip,
-          URL = nodes$URL
+          URL = nodes$URL,
+          outcome = nodes$outcome
         )
       
       base::set.seed(input$defseedoutcomes)
+      
+      if (!base::is.null(input$slctegooutcome)){
+        x <- input$slctegooutcome
+        y <- outcome_graph$nodes_df |> dplyr::filter(outcome %in% x)
+        y <- y$id
+        tmp <- outcome_graph$edges_df |>
+          dplyr::filter(from %in% y | to %in% y)
+        z <- base::unique(c(tmp$from, tmp$to))
+        outcome_graph$nodes_df <- dplyr::filter(outcome_graph$nodes_df, id %in% z)
+        outcome_graph$edges_df <- outcome_graph$edges_df |>
+          dplyr::filter(from %in% z, to %in% z)
+      } else {
+        outcome_graph <- outcome_graph
+      }
       
       layout_basis <- DiagrammeR::to_igraph(outcome_graph)
       
@@ -583,6 +645,27 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       outcome_graph$nodes_df$x <- layout[,1] / input$defscalingoutcomes
       outcome_graph$nodes_df$y <- layout[,2] / input$defscalingoutcomes
       
+      outcome_centrality <- tibble::tibble(
+        outcome = igraph::vertex_attr(layout_basis, "outcome"),
+        degree = igraph::degree(layout_basis, mode = "all"),
+        indegree = igraph::degree(layout_basis, mode = "in"),
+        outdegree = igraph::degree(layout_basis, mode = "out"),
+        closeness = base::round(igraph::closeness(layout_basis, mode = "all")*100,2),
+        incloseness = base::round(igraph::closeness(layout_basis, mode = "in")*100,2),
+        outcloseness = base::round(igraph::closeness(layout_basis, mode = "out")*100,2),
+        betweenness = base::round(igraph::betweenness(layout_basis),2),
+        authority = base::round(igraph::authority_score(layout_basis)$vector*100,0),
+        hub = base::round(igraph::hub_score(layout_basis)$vector*100,0),
+        strength = igraph::strength(layout_basis),
+        constraint = base::round(igraph::constraint(layout_basis)*100,0),
+        harmonic = base::round(igraph::harmonic_centrality(layout_basis)*10,0),
+        eigen = base::round(igraph::eigen_centrality(layout_basis)$vector*100,0),
+        power = base::round(igraph::power_centrality(layout_basis)*100,0),
+        negpower = base::round(igraph::power_centrality(layout_basis, exponent = -1)*100,0),
+      )
+      outcome_graph$nodes_df <- outcome_graph$nodes_df |>
+        dplyr::left_join(outcome_centrality, by = "outcome")
+      
       outcome_graph
     })
     
@@ -594,6 +677,15 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         height = "800px",
         as_svg = TRUE
       )
+    })
+    
+    output$outcometable <- DT::renderDataTable({
+      shiny::req(!base::is.null(outcome_graph()))
+      outcome_graph()$nodes_df |>
+        dplyr::select(
+          label, indegree, outdegree, closeness, betweenness, authority,
+          hub, strength, constraint, harmonic, eigen, power, negpower
+        )
     })
     
     
@@ -719,6 +811,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           tidyr::replace_na(base::list(
             requirement = "OPT",
             weigth = "0",
+            level = "NOV",
             time_space = "AOL",
             social = "IND",
             duration = "0"
@@ -762,7 +855,10 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       
       activity <- activitylist() |>
         dplyr::filter(activity == selected_activity()) |>
-        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
+        dplyr::mutate(
+          label = stringr::str_replace_all(label, "_", " "),
+          type = base::as.character(type)
+        )
       
       attributes <- reactval$actattributes |>
         dplyr::filter(activity == selected_activity())
@@ -808,6 +904,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       base::names(reqchoices) <- base::unlist(tmp$label)
       
       tmp <- attrchoices |>
+        dplyr::filter(attribute == "level")
+      levchoices <- base::unlist(tmp$value)
+      base::names(levchoices) <- base::unlist(tmp$label)
+      
+      tmp <- attrchoices |>
         dplyr::filter(attribute == "time_space")
       timspachoices <- base::unlist(tmp$value)
       base::names(timspachoices) <- base::unlist(tmp$label)
@@ -837,7 +938,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         ),
         shiny::fluidRow(
           shiny::column(
-            4,
+            3,
             shinyWidgets::radioGroupButtons(
               inputId = ns("defreq"),
               label = "Requirement:", 
@@ -851,7 +952,21 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             )
           ),
           shiny::column(
-            4,
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("deflevel"),
+              label = "Level:", 
+              choices = levchoices,
+              selected = attributes$level[1],
+              justified = TRUE,
+              status = "warning",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
             shinyWidgets::radioGroupButtons(
               inputId = ns("deftimespace"),
               label = "Time and Space:", 
@@ -865,7 +980,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             )
           ),
           shiny::column(
-            4,
+            3,
             shinyWidgets::radioGroupButtons(
               inputId = ns("defsocial"),
               label = "Social:", 
@@ -937,6 +1052,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         resource = input$defresource,
         requirement = input$defreq,
         weigth = input$defweight,
+        level = input$deflevel,
         time_space = input$deftimespace,
         social = input$defsocial,
         duration = input$defduration,
@@ -988,6 +1104,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       req <- reactval$attributes |>
         dplyr::filter(attribute == "requirement", language == input$slctlang) |>
         dplyr::select(requirement = value, reqlab = label)
+      lev <- reactval$attributes |>
+        dplyr::filter(attribute == "level", language == input$slctlang) |>
+        dplyr::select(level = value, levlab = label)
       ts <- reactval$attributes |>
         dplyr::filter(attribute == "time_space", language == input$slctlang) |>
         dplyr::select(time_space = value, tslab = label)
@@ -1009,10 +1128,32 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(outcomes, by = "outcome") |>
         tidyr::replace_na(base::list(color = "#FFFFFF")) |>
         dplyr::left_join(req, by = "requirement") |>
+        dplyr::left_join(lev, by = "level") |>
         dplyr::left_join(ts, by = "time_space") |>
         dplyr::left_join(soc, by = "social") |>
         dplyr::select(-language, -outcome) |>
         tidyr::replace_na(base::list(end = "-"))
+    })
+    
+    output$egoactivityselection <- shiny::renderUI({
+      shiny::req(!base::is.null(activity_labels()))
+      activities <- activity_labels() |>
+        dplyr::select(activity, label, color) |>
+        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
+      activitychoices <- activities$activity
+      base::names(activitychoices) <- activities$label
+      activitycolors <- base::paste0(
+        "color: #FFFFFF; background: ", activities$color,";"
+      )
+      shinyWidgets::pickerInput(
+        inputId = ns("slctegoactivity"),
+        label = "Focus on activities:", 
+        choices = activitychoices,
+        selected = NULL,
+        choicesOpt = base::list(style = activitycolors),
+        multiple = TRUE,
+        width = "100%"
+      )
     })
     
     activity_graph <- shiny::reactive({
@@ -1060,10 +1201,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           tooltip = base::paste0(
             stringr::str_replace_all(label, "_", " "), "\n\n",
             description, "\n\n",
+            type, " | ", levlab, "\n",
             reqlab, " | ", base::round(weigth * 100,0), "%\n",
             soclab, " | ", tslab, "\n",
             duration, " minutes | ", end, "\n\n",
-            activity, " (", type, ")"
+            activity
           )
         ) |>
         dplyr::mutate(
@@ -1134,6 +1276,21 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       
       base::set.seed(input$defseedactivities)
       
+      if (!base::is.null(input$slctegoactivity)){
+        x <- input$slctegoactivity
+        y <- activity_graph$nodes_df |> dplyr::filter(activity %in% x)
+        y <- y$id
+        tmp <- activity_graph$edges_df |>
+          dplyr::filter(from %in% y | to %in% y)
+        z <- base::unique(c(tmp$from, tmp$to))
+        activity_graph$nodes_df <- dplyr::filter(activity_graph$nodes_df, id %in% z)
+        activity_graph$edges_df <- activity_graph$edges_df |>
+          dplyr::filter(from %in% z, to %in% z)
+        
+      } else {
+        activity_graph <- activity_graph
+      }
+      
       layout_basis <- DiagrammeR::to_igraph(activity_graph)
       
       layout <- base::switch(
@@ -1148,6 +1305,27 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       activity_graph$nodes_df$x <- layout[,1] / input$defscalingactivities
       activity_graph$nodes_df$y <- layout[,2] / input$defscalingactivities
       
+      activity_centrality <- tibble::tibble(
+        activity = igraph::vertex_attr(layout_basis, "activity"),
+        degree = igraph::degree(layout_basis, mode = "all"),
+        indegree = igraph::degree(layout_basis, mode = "in"),
+        outdegree = igraph::degree(layout_basis, mode = "out"),
+        closeness = base::round(igraph::closeness(layout_basis, mode = "all")*100,2),
+        incloseness = base::round(igraph::closeness(layout_basis, mode = "in")*100,2),
+        outcloseness = base::round(igraph::closeness(layout_basis, mode = "out")*100,2),
+        betweenness = base::round(igraph::betweenness(layout_basis),2),
+        authority = base::round(igraph::authority_score(layout_basis)$vector*100,0),
+        hub = base::round(igraph::hub_score(layout_basis)$vector*100,0),
+        strength = igraph::strength(layout_basis),
+        constraint = base::round(igraph::constraint(layout_basis)*100,0),
+        harmonic = base::round(igraph::harmonic_centrality(layout_basis)*10,0),
+        eigen = base::round(igraph::eigen_centrality(layout_basis)$vector*100,0),
+        power = base::round(igraph::power_centrality(layout_basis)*100,0),
+        negpower = base::round(igraph::power_centrality(layout_basis, exponent = -1)*100,0),
+      )
+      activity_graph$nodes_df <- activity_graph$nodes_df |>
+        dplyr::left_join(activity_centrality, by = "activity")
+      
       activity_graph
     })
     
@@ -1161,6 +1339,14 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
+    output$activitytable <- DT::renderDataTable({
+      shiny::req(!base::is.null(activity_graph()))
+      activity_graph()$nodes_df |>
+        dplyr::select(
+          label, indegree, outdegree, closeness, betweenness, authority,
+          hub, strength, constraint, harmonic, eigen, power, negpower
+        )
+    })
     
     
     # ANALYSES OF DESIGN #######################################################
@@ -1192,11 +1378,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(dplyr::select(outcomes, outcome, outcomelab = label), by = "outcome") |>
         dplyr::select(
           object, activity, activitylab = label, outcome = outcomelab, outcomecolor = color,
-          type, requirement, time_space, social, duration, start, end
+          type, requirement, level, time_space, social, duration, start, end
         ) |>
         dplyr::mutate(
           type = base::factor(type, levels = c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")),
           requirement = base::factor(requirement, levels = c("NEC","REC","OPT")),
+          level = base::factor(level, levels = c("NOV","APP","PRO","MAS","EXP")),
           time_space = base::factor(time_space, levels = c("SOS","SOL","AOL")),
           social = base::factor(social, levels = c("GP","TM","IND")),
           duration = base::as.numeric(duration),
@@ -1220,7 +1407,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     output$design_selections <- shiny::renderUI({
       shiny::req(!base::is.null(prepactivities()))
       shiny::fluidRow(
-        shiny::column(2, shinyWidgets::virtualSelectInput(
+        shiny::column(3, shinyWidgets::virtualSelectInput(
           ns("desfilttype"), "Types:",
           choices = base::levels(prepactivities()$type),
           selected = base::levels(prepactivities()$type),
@@ -1232,13 +1419,20 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           selected = base::levels(prepactivities()$requirement),
           multiple = TRUE, width = "100%"
         )),
-        shiny::column(2, shinyWidgets::virtualSelectInput(
-          ns("desfiltts"), "Times and spaces:",
+        
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("desfiltlev"), "Levels:",
+          choices = base::levels(prepactivities()$level),
+          selected = base::levels(prepactivities()$level),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("desfiltts"), "Time-space:",
           choices = base::levels(prepactivities()$time_space),
           selected = base::levels(prepactivities()$time_space),
           multiple = TRUE, width = "100%"
         )),
-        shiny::column(2, shinyWidgets::virtualSelectInput(
+        shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("desfiltsoc"), "Social:",
           choices = base::levels(prepactivities()$social),
           selected = base::levels(prepactivities()$social),
@@ -1253,7 +1447,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         )),
         shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("desslctcat"), "Category:",
-          choices = c("type","requirement","time_space","social","startweek","endweek"),
+          choices = c("type","requirement","level","time_space","social","startweek","endweek"),
           selected = "type",
           multiple = FALSE, width = "100%"
         )),
@@ -1276,12 +1470,15 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(!base::is.null(prepactivities()))
       shiny::req(!base::is.null(input$desfilttype))
       shiny::req(!base::is.null(input$desfiltreq))
+      shiny::req(!base::is.null(input$desfiltlev))
       shiny::req(!base::is.null(input$desfiltts))
       shiny::req(!base::is.null(input$desfiltsoc))
+      
       desfiltactivities <- prepactivities() |>
         dplyr::filter(
           type %in% input$desfilttype,
           requirement %in% input$desfiltreq,
+          level %in% input$desfiltlev,
           time_space %in% input$desfiltts,
           social %in% input$desfiltsoc
         )
@@ -1301,6 +1498,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::mutate(units = 1) |>
           base::unique()
       }
+      
       desfiltactivities
     })
     
@@ -1449,7 +1647,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       base::names(studentchoices) <- prepstudentchoices$fullname
       
       shiny::fluidRow(
-        shiny::column(3, shinyWidgets::virtualSelectInput(
+        shiny::column(2, shinyWidgets::virtualSelectInput(
           ns("logslctstudent"), "Students:",
           choices = studentchoices,
           selected = studentchoices,
@@ -1470,6 +1668,12 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           multiple = TRUE, width = "100%"
         )),
         shiny::column(1, shinyWidgets::virtualSelectInput(
+          ns("logfiltlev"), "Levels:",
+          choices = base::levels(preplogs()$level),
+          selected = base::levels(preplogs()$level),
+          multiple = TRUE, width = "100%"
+        )),
+        shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("logfiltts"), "Time-space:",
           choices = base::levels(preplogs()$time_space),
           selected = base::levels(preplogs()$time_space),
@@ -1484,7 +1688,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         
         shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("logslctcat"), "Category:",
-          choices = c("type","requirement","time_space","social","week"),
+          choices = c("type","requirement","level","time_space","social","week"),
           selected = "type",
           multiple = FALSE, width = "100%"
         )),
@@ -1522,6 +1726,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::filter(
           type %in% input$logfilttype,
           requirement %in% input$logfiltreq,
+          level %in% input$logfiltlev,
           time_space %in% input$logfiltts,
           social %in% input$logfiltsoc
         )
@@ -1560,7 +1765,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       periods <- base::levels(filteredlogs()$period)
       shinyWidgets::sliderTextInput(
         inputId = ns("temprange"),
-        label = "Choose a range:", 
+        label = "Choose a time range:", 
         choices = periods,
         selected = periods[c(1, base::length(periods))],
         width = "100%"
