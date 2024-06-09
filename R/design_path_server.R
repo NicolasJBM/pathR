@@ -202,6 +202,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     levlab <- NULL
     from <- NULL
     to <- NULL
+    authority <- NULL
+    harmonic <- NULL
+    hub <- NULL
+    indegree <- NULL
+    negpower <- NULL
+    outdegree <- NULL
+    power <- NULL
     
     
     # DATA #####################################################################
@@ -865,10 +872,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       
       acttype <- activity$type[[1]]
       
-      slctoutcomes <- outcomelist() |>
-        dplyr::filter(type != "GEN")
-      outcomes <- slctoutcomes$outcome
-      base::names(outcomes) <- stringr::str_replace_all(slctoutcomes$label, "_", " ")
+      outcomes <- c(NA, outcomelist()$outcome)
+      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
       
       preslctoutcomes <- attributes$outcomes[1] |>
         stringr::str_split(" ", simplify = TRUE) |>
@@ -889,9 +894,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::select(code, title)
         resources <- base::unlist(tmp$code)
         base::names(resources) <- base::unlist(tmp$title)
-        if (attributes$resource[1] %in% resources) resources <- resources else
-          resources <- c(attributes$resource[1], resources)
       }
+      notcov <- c('Not covered yet' = NA)
+      resources <- c(notcov, resources)
       
       attrchoices <- reactval$attributes |>
         dplyr::filter(language == input$slctlang) |>
@@ -1189,7 +1194,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             TRUE ~ "FF"
           ),
           fontcolor = dplyr::case_when(
-            requirement == "NEC" ~ "white",
+            requirement == "NEC" ~ "grey60",
             TRUE ~ "black"
           ),
           peripheries = dplyr::case_when(
@@ -1232,7 +1237,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             condition == "Completion" ~ "#0000FF",
             condition == "Failure" ~ "#990000",
             condition == "Success" ~ "#006600",
-            TRUE ~ "#333333"
+            TRUE ~ "#777777"
           ),
           style = dplyr::case_when(
             reqorig == "NEC" & reqdest == "NEC" ~ "solid",
@@ -1272,6 +1277,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           URL = nodes$URL,
           peripheries = nodes$peripheries,
           activity = nodes$activity
+        )
+      
+      activity_graph$edges_df <- activity_graph$edges_df |>
+        dplyr::mutate(
+          style = edges$style,
+          penwidth = edges$penwidth,
+          color = edges$color
         )
       
       base::set.seed(input$defseedactivities)
@@ -1380,6 +1392,10 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           object, activity, activitylab = label, outcome = outcomelab, outcomecolor = color,
           type, requirement, level, time_space, social, duration, start, end
         ) |>
+        tidyr::replace_na(
+          start = base::as.character(base::Sys.Date()),
+          end = base::as.character(base::Sys.Date())
+        )
         dplyr::mutate(
           type = base::factor(type, levels = c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")),
           requirement = base::factor(requirement, levels = c("NEC","REC","OPT")),
