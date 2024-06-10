@@ -97,6 +97,7 @@
 #' @importFrom shiny sliderInput
 #' @importFrom shiny tagList
 #' @importFrom shinyWidgets airDatepickerInput
+#' @importFrom shinyWidgets pickerInput
 #' @importFrom shinyWidgets radioGroupButtons
 #' @importFrom shinyWidgets sliderTextInput
 #' @importFrom shinyWidgets virtualSelectInput
@@ -209,6 +210,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     negpower <- NULL
     outdegree <- NULL
     power <- NULL
+    shapesize <- NULL
     
     
     # DATA #####################################################################
@@ -228,6 +230,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     output$slctlanguage <- shiny::renderUI({
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
+      input$reloadpath
       languages <- course_data()$languages |>
         dplyr::select(langiso, language, flag)
       shinyWidgets::radioGroupButtons(
@@ -246,7 +249,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
-    shiny::observe({
+    shiny::observeEvent(input$loadpath, {
       shiny::req(!base::is.null(pathfile()))
       
       if (!base::file.exists(pathfile())){
@@ -384,6 +387,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
       shiny::req(!base::is.null(input$slctlang))
+      shiny::req(!base::is.null(reactval$outlabels))
       labels <- reactval$outlabels |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::select(-language)
@@ -649,8 +653,21 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         kk = igraph::layout_with_kk(layout_basis)
       )
       
-      outcome_graph$nodes_df$x <- layout[,1] / input$defscalingoutcomes
-      outcome_graph$nodes_df$y <- layout[,2] / input$defscalingoutcomes
+      if ("switchxy" %in% input$outcomeaxes){
+        xaxis <- layout[,2] / input$defscalingoutcomes
+        yaxis <- layout[,1] / input$defscalingoutcomes
+      } else {
+        xaxis <- layout[,1] / input$defscalingoutcomes
+        yaxis <- layout[,2] / input$defscalingoutcomes
+      }
+      if ("invertx" %in% input$outcomeaxes){
+        xaxis <- -xaxis
+      }
+      if ("inverty" %in% input$outcomeaxes){
+        yaxis <- -yaxis
+      }
+      outcome_graph$nodes_df$x <- xaxis
+      outcome_graph$nodes_df$y <- yaxis
       
       outcome_centrality <- tibble::tibble(
         outcome = igraph::vertex_attr(layout_basis, "outcome"),
@@ -705,6 +722,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
       shiny::req(!base::is.null(input$slctlang))
+      shiny::req(!base::is.null(reactval$activities))
       labels <- reactval$actlabels |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::select(-language)
@@ -1081,7 +1099,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::mutate(
           origin = base::factor(origin, reactval$activities$activity),
           destination = base::factor(destination, reactval$activities$activity),
-          condition = base::factor(condition, levels = c("None","Completion","Failure","Success"))
+          condition = base::factor(condition, levels = c("None","Done","OK","Not OK"))
         ) |>
         dplyr::arrange(origin, destination) |>
         rhandsontable::rhandsontable(
@@ -1105,6 +1123,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     # Visualize the activity map.
     
     activity_labels <- shiny::reactive({
+      shiny::req(!base::is.null(reactval$outcomes))
       outcomes <- dplyr::select(reactval$outcomes, outcome, color)
       req <- reactval$attributes |>
         dplyr::filter(attribute == "requirement", language == input$slctlang) |>
@@ -1136,15 +1155,21 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(lev, by = "level") |>
         dplyr::left_join(ts, by = "time_space") |>
         dplyr::left_join(soc, by = "social") |>
-        dplyr::select(-language, -outcome) |>
+        dplyr::select(-language) |>
         tidyr::replace_na(base::list(end = "-"))
     })
     
     output$egoactivityselection <- shiny::renderUI({
       shiny::req(!base::is.null(activity_labels()))
       activities <- activity_labels() |>
-        dplyr::select(activity, label, color) |>
+        dplyr::select(activity, label, color, outcome) |>
         dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
+      
+      if (!base::is.null(input$slctegooutcome)){
+        activities <- activities |>
+          dplyr::filter(outcome %in% input$slctegooutcome)
+      }
+      
       activitychoices <- activities$activity
       base::names(activitychoices) <- activities$label
       activitycolors <- base::paste0(
@@ -1154,7 +1179,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         inputId = ns("slctegoactivity"),
         label = "Focus on activities:", 
         choices = activitychoices,
-        selected = NULL,
+        selected = activitychoices,
         choicesOpt = base::list(style = activitycolors),
         multiple = TRUE,
         width = "100%"
@@ -1188,14 +1213,15 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             type == "Test" ~ "star",
             TRUE ~ "point"
           ),
-          alpha = dplyr::case_when(
-            requirement == "OPT" ~ "22",
-            requirement == "REC" ~ "77",
-            TRUE ~ "FF"
+          shapesize = dplyr::case_when(
+            requirement == "NEC" ~ 1.0,
+            requirement == "REC" ~ 0.9,
+            TRUE ~ 0.8
           ),
-          fontcolor = dplyr::case_when(
-            requirement == "NEC" ~ "grey60",
-            TRUE ~ "black"
+          alpha = dplyr::case_when(
+            requirement == "OPT" ~ "11",
+            requirement == "REC" ~ "33",
+            TRUE ~ "77"
           ),
           peripheries = dplyr::case_when(
             time_space == "AOL" ~ 1,
@@ -1219,7 +1245,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           fillcolor = base::paste(color, alpha, sep = "")
         ) |>
         dplyr::select(
-          activity, requirement, label, shape, peripheries, penwidth, bordercolor, fillcolor, fontcolor, tooltip, URL
+          activity, requirement, label, shape, shapesize, peripheries, penwidth, bordercolor, fillcolor, fontcolor, tooltip, URL
         )
       
       for (i in base::seq_len(base::nrow(nodes))) {
@@ -1234,9 +1260,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(dplyr::select(nodes, destination = activity, labdest = label, reqdest = requirement), by = "destination") |>
         dplyr::mutate(
           color = dplyr::case_when(
-            condition == "Completion" ~ "#0000FF",
-            condition == "Failure" ~ "#990000",
-            condition == "Success" ~ "#006600",
+            condition == "Done" ~ "#0000FF",
+            condition == "Not OK" ~ "#990000",
+            condition == "OK" ~ "#006600",
             TRUE ~ "#777777"
           ),
           style = dplyr::case_when(
@@ -1265,13 +1291,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       activity_graph$nodes_df <- activity_graph$nodes_df |>
         dplyr::mutate(
           shape = nodes$shape,
-          width = 0.8,
-          height = 0.8,
+          width = nodes$shapesize,
+          height = nodes$shapesize,
           fontsize = 10,
           style = "filled",
           color = nodes$bordercolor,
           fillcolor = nodes$fillcolor,
-          fontcolor = nodes$fontcolor,
+          fontcolor = "black",
           penwidth = nodes$penwidth,
           tooltip = nodes$tooltip,
           URL = nodes$URL,
@@ -1314,8 +1340,21 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         kk = igraph::layout_with_kk(layout_basis)
       )
       
-      activity_graph$nodes_df$x <- layout[,1] / input$defscalingactivities
-      activity_graph$nodes_df$y <- layout[,2] / input$defscalingactivities
+      if ("switchxy" %in% input$activityaxes){
+        xaxis <- layout[,2] / input$defscalingactivities
+        yaxis <- layout[,1] / input$defscalingactivities
+      } else {
+        xaxis <- layout[,1] / input$defscalingactivities
+        yaxis <- layout[,2] / input$defscalingactivities
+      }
+      if ("invertx" %in% input$activityaxes){
+        xaxis <- -xaxis
+      }
+      if ("inverty" %in% input$activityaxes){
+        yaxis <- -yaxis
+      }
+      activity_graph$nodes_df$x <- xaxis
+      activity_graph$nodes_df$y <- yaxis
       
       activity_centrality <- tibble::tibble(
         activity = igraph::vertex_attr(layout_basis, "activity"),
@@ -1392,10 +1431,10 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           object, activity, activitylab = label, outcome = outcomelab, outcomecolor = color,
           type, requirement, level, time_space, social, duration, start, end
         ) |>
-        tidyr::replace_na(
+        tidyr::replace_na(base::list(
           start = base::as.character(base::Sys.Date()),
           end = base::as.character(base::Sys.Date())
-        )
+        )) |>
         dplyr::mutate(
           type = base::factor(type, levels = c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")),
           requirement = base::factor(requirement, levels = c("NEC","REC","OPT")),

@@ -19,6 +19,7 @@
 #' @importFrom shiny span
 #' @importFrom shiny tabPanel
 #' @importFrom shiny uiOutput
+#' @importFrom shinyWidgets checkboxGroupButtons
 #' @importFrom shinydashboard tabBox
 #' @importFrom shinydashboardPlus box
 #' @export
@@ -28,26 +29,31 @@ design_path_ui <- function(id){
   ns <- shiny::NS(id)
   base::list(
     shiny::fluidRow(
-      shiny::column(4, shiny::uiOutput(ns("slctlanguage"))),
+      shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
+      shiny::column(2, shiny::actionButton(
+        ns("loadpath"), "Load",
+        icon = shiny::icon("rotate"),
+        style = "width:100%;color:#FFFFFF;background-color:#006633;"
+      )),
       shiny::column(2, shiny::actionButton(
         ns("savepaths"), "Save",
         icon = shiny::icon("floppy-disk"),
-        style = "width:100%;color:#FFFFFF;background-color:#006633;"
+        style = "width:100%;color:#FFFFFF;background-color:#003366;"
       )),
       shiny::column(2, shiny::actionButton(
         ns("openpaths"), "Open",
         icon = shiny::icon("file-excel"),
-        style = "width:100%;color:#FFFFFF;background-color:#006666;"
+        style = "width:100%;color:#FFFFFF;background-color:#000099;"
       )),
       shiny::column(2, shiny::actionButton(
         ns("openfolder"), "Folder",
         icon = shiny::icon("folder-open"),
-        style = "width:100%;color:#FFFFFF;background-color:#003399;"
+        style = "width:100%;color:#FFFFFF;background-color:#660099;"
       )),
       shiny::column(2, shiny::actionButton(
         ns("exportpaths"), "Export",
         icon = shiny::icon("file-export"),
-        style = "width:100%;color:#FFFFFF;background-color:#660099;"
+        style = "width:100%;color:#FFFFFF;background-color:#990066;"
       ))
     ),
     shinydashboard::tabBox(
@@ -102,7 +108,17 @@ design_path_ui <- function(id){
             value = 1, min = 0.01, max = 100, step = 0.01,
             width = "100%"
           )),
-          shiny::column(6, shiny::uiOutput(ns("egooutcomeselection")))
+          shiny::column(1, shinyWidgets::checkboxGroupButtons(
+            inputId = ns("outcomeaxes"),
+            label = "Change axes:", 
+            choices = c(
+              `<i class='fa fa-turn-up'></i>` = "switchxy",
+              `<i class='fa fa-left-right'></i>` = "invertx",
+              `<i class='fa fa-up-down'></i>` = "inverty"
+            ),
+            justified = TRUE, width = "100%"
+          )),
+          shiny::column(5, shiny::uiOutput(ns("egooutcomeselection")))
         ),
         shiny::uiOutput(ns("outcomemap")),
         DT::dataTableOutput(ns("outcometable"))
@@ -171,7 +187,17 @@ design_path_ui <- function(id){
             value = 1, min = 0.1, max = 100, step = 0.1,
             width = "100%"
           )),
-          shiny::column(6, shiny::uiOutput(ns("egoactivityselection")))
+          shiny::column(1, shinyWidgets::checkboxGroupButtons(
+            inputId = ns("activityaxes"),
+            label = "Change axes:", 
+            choices = c(
+              `<i class='fa fa-turn-up'></i>` = "switchxy",
+              `<i class='fa fa-left-right'></i>` = "invertx",
+              `<i class='fa fa-up-down'></i>` = "inverty"
+            ),
+            justified = TRUE
+          )),
+          shiny::column(5, shiny::uiOutput(ns("egoactivityselection")))
         ),
         shiny::uiOutput(ns("activitymap")),
         DT::dataTableOutput(ns("activitytable"))
