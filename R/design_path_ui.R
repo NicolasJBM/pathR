@@ -139,7 +139,10 @@ design_path_ui <- function(id){
             closable = FALSE,
             icon = shiny::icon("list"),
             gradient = FALSE,
-            shiny::actionButton(ns("updateactlist"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+            shiny::fluidRow(
+              shiny::column(6, shiny::actionButton(ns("updateactlist"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;")),
+              shiny::column(6, shiny::actionButton(ns("newactivity"), "New", icon = shiny::icon("wand-magic-sparkles"), style = "width:100%;color:#FFFFFF;background-color:#006633;"))
+            ),
             rhandsontable::rHandsontableOutput(ns("createactivities"))
           ),
           shinydashboardPlus::box(

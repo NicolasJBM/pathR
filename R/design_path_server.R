@@ -213,6 +213,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     shapesize <- NULL
     
     
+    
     # DATA #####################################################################
     # Load paths
     
@@ -536,7 +537,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     shiny::observeEvent(input$updateconnections, {
       updated_connections <- rhandsontable::hot_to_r(input$editconnections) |>
         dplyr::mutate_all(base::as.character) |>
-        stats::na.omit()
+        stats::na.omit() |>
+        base::unique() |>
+        dplyr::filter(origin != destination)
       reactval$connections <- updated_connections
     })
     
@@ -653,21 +656,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         kk = igraph::layout_with_kk(layout_basis)
       )
       
-      if ("switchxy" %in% input$outcomeaxes){
-        xaxis <- layout[,2] / input$defscalingoutcomes
-        yaxis <- layout[,1] / input$defscalingoutcomes
-      } else {
-        xaxis <- layout[,1] / input$defscalingoutcomes
-        yaxis <- layout[,2] / input$defscalingoutcomes
-      }
-      if ("invertx" %in% input$outcomeaxes){
-        xaxis <- -xaxis
-      }
-      if ("inverty" %in% input$outcomeaxes){
-        yaxis <- -yaxis
-      }
-      outcome_graph$nodes_df$x <- xaxis
-      outcome_graph$nodes_df$y <- yaxis
+      outcome_graph$nodes_df$x <- layout[,1] / input$defscalingoutcomes
+      outcome_graph$nodes_df$y <- layout[,2] / input$defscalingoutcomes
       
       outcome_centrality <- tibble::tibble(
         outcome = igraph::vertex_attr(layout_basis, "outcome"),
@@ -695,8 +685,24 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     
     output$outcomemap <- shiny::renderUI({
       shiny::req(!base::is.null(outcome_graph()))
+      outcome_graph <- outcome_graph()
+      if ("switchxy" %in% input$outcomeaxes){
+        xaxis <- outcome_graph$nodes_df$y
+        yaxis <- outcome_graph$nodes_df$x
+      } else {
+        xaxis <- outcome_graph$nodes_df$x
+        yaxis <- outcome_graph$nodes_df$y
+      }
+      if ("invertx" %in% input$outcomeaxes){
+        xaxis <- -xaxis
+      }
+      if ("inverty" %in% input$outcomeaxes){
+        yaxis <- -yaxis
+      }
+      outcome_graph$nodes_df$x <- xaxis
+      outcome_graph$nodes_df$y <- yaxis
       DiagrammeR::render_graph(
-        outcome_graph(),
+        outcome_graph,
         width = "1600px",
         height = "800px",
         as_svg = TRUE
@@ -1116,7 +1122,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     shiny::observeEvent(input$updatepaths, {
       updated_paths <- rhandsontable::hot_to_r(input$editpaths) |>
         dplyr::mutate_all(base::as.character) |>
-        stats::na.omit()
+        stats::na.omit() |>
+        base::unique() |>
+        dplyr::filter(origin != destination)
       reactval$paths <- updated_paths
     })
     
@@ -1187,12 +1195,6 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     activity_graph <- shiny::reactive({
-      shiny::req(base::nrow(reactval$outcomes) > 1)
-      shiny::req(base::nrow(reactval$actlabels) > 1)
-      shiny::req(base::nrow(reactval$activities) > 1)
-      shiny::req(base::nrow(reactval$paths) > 1)
-      shiny::req(base::nrow(reactval$actattributes) > 1)
-      shiny::req(base::nrow(reactval$attributes) > 1)
       shiny::req(!base::is.null(input$slctlang))
       shiny::req(!base::is.null(activity_labels()))
       
@@ -1280,6 +1282,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           destination = stringr::str_replace_all(destination, "_", "\n")
         )
       
+      shiny::req(base::all(edges$origin %in% nodes$label))
+      shiny::req(base::all(edges$destination %in% nodes$label))
+      
       for (i in base::seq_len(base::nrow(edges))) {
         activity_graph <- DiagrammeR::add_edge(
           activity_graph,
@@ -1340,21 +1345,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         kk = igraph::layout_with_kk(layout_basis)
       )
       
-      if ("switchxy" %in% input$activityaxes){
-        xaxis <- layout[,2] / input$defscalingactivities
-        yaxis <- layout[,1] / input$defscalingactivities
-      } else {
-        xaxis <- layout[,1] / input$defscalingactivities
-        yaxis <- layout[,2] / input$defscalingactivities
-      }
-      if ("invertx" %in% input$activityaxes){
-        xaxis <- -xaxis
-      }
-      if ("inverty" %in% input$activityaxes){
-        yaxis <- -yaxis
-      }
-      activity_graph$nodes_df$x <- xaxis
-      activity_graph$nodes_df$y <- yaxis
+      activity_graph$nodes_df$x <- layout[,1] / input$defscalingactivities
+      activity_graph$nodes_df$y <- layout[,2] / input$defscalingactivities
       
       activity_centrality <- tibble::tibble(
         activity = igraph::vertex_attr(layout_basis, "activity"),
@@ -1382,8 +1374,24 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     
     output$activitymap <- shiny::renderUI({
       shiny::req(!base::is.null(activity_graph()))
+      activity_graph <- activity_graph()
+      if ("switchxy" %in% input$activityaxes){
+        xaxis <- activity_graph$nodes_df$y
+        yaxis <- activity_graph$nodes_df$x
+      } else {
+        xaxis <- activity_graph$nodes_df$x
+        yaxis <- activity_graph$nodes_df$y
+      }
+      if ("invertx" %in% input$activityaxes){
+        xaxis <- -xaxis
+      }
+      if ("inverty" %in% input$activityaxes){
+        yaxis <- -yaxis
+      }
+      activity_graph$nodes_df$x <- xaxis
+      activity_graph$nodes_df$y <- yaxis
       DiagrammeR::render_graph(
-        activity_graph(),
+        activity_graph,
         width = "1600px",
         height = "800px",
         as_svg = TRUE
@@ -1399,6 +1407,272 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         )
     })
     
+    shiny::observeEvent(input$newactivity, {
+      
+      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
+      outcomes <- c(NA, outcomelist()$outcome)
+      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
+      
+      attrchoices <- reactval$attributes |>
+        dplyr::filter(language == input$slctlang) |>
+        dplyr::mutate(label = base::paste0("<i class='fa fa-",icon,"'> | ",value,"</i>")) |>
+        dplyr::select(attribute, label, value)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "requirement")
+      reqchoices <- base::unlist(tmp$value)
+      base::names(reqchoices) <- base::unlist(tmp$label)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "level")
+      levchoices <- base::unlist(tmp$value)
+      base::names(levchoices) <- base::unlist(tmp$label)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "time_space")
+      timspachoices <- base::unlist(tmp$value)
+      base::names(timspachoices) <- base::unlist(tmp$label)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "social")
+      socchoices <- base::unlist(tmp$value)
+      base::names(socchoices) <- base::unlist(tmp$label)
+      
+      preporigdest <- reactval$actlabels |>
+        dplyr::filter(language == input$slctlang) |>
+        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
+      origdest <- preporigdest$activity
+      base::names(origdest) <- preporigdest$label
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add a new activity",
+        shiny::fluidRow(
+          shiny::column(
+            3,
+            shiny::textInput(ns("newactid"), "ID:", value = "", width = "100%")
+          ),
+          shiny::column(
+            6,
+            shiny::textInput(ns("newactlab"), "Label:", value = "Write a label here", width = "100%")
+          ),
+          shiny::column(
+            3,
+            shiny::selectInput(
+              ns("newacttype"), "Type:",
+              choices = types, selected = types[1],
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        shiny::textAreaInput(ns("newactdesc"), "Description:", value = NA, width = "100%"),
+        shiny::fluidRow(
+          shiny::column(
+            9,
+            shiny::selectInput(
+              ns("newactoutcome"), "Outcomes:",
+              choices = outcomes,
+              multiple = TRUE, width = "100%"
+            )
+          ),
+          shiny::column(
+            3,
+            shiny::textInput(ns("newactorder"), "Order:", value = "", width = "100%")
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newactreq"),
+              label = "Requirement:", 
+              choices = reqchoices,
+              selected = reqchoices[1],
+              justified = TRUE,
+              status = "danger",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newactlevel"),
+              label = "Level:", 
+              choices = levchoices,
+              selected = levchoices[1],
+              justified = TRUE,
+              status = "warning",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newacttimespace"),
+              label = "Time and Space:", 
+              choices = timspachoices,
+              selected = timspachoices[1],
+              justified = TRUE,
+              status = "info",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newactsocial"),
+              label = "Social:", 
+              choices = socchoices,
+              selected = socchoices[1],
+              justified = TRUE,
+              status = "success",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            9,
+            shiny::sliderInput(
+              ns("newactweight"), "Weigth:",
+              min = 0., max = 1, step = 0.01,
+              value = 0, width = "100%"
+            )
+          ),
+          shiny::column(
+            3,
+            shiny::numericInput(
+              ns("newactduration"), "Duration:",
+              min = 5, max = 480, step = 5,
+              value = 0, width = "100%"
+            )
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shinyWidgets::airDatepickerInput(
+              inputId = ns("newactstart"),
+              label = "Start:", width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shinyWidgets::airDatepickerInput(
+              inputId = ns("newactend"),
+              label = "End:", width = "100%"
+            )
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newactorig"), "Origins:",
+              choices = origdest, selected = NULL,
+              multiple = TRUE, width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newactdest"), "Destinations:",
+              choices = origdest, selected = NULL,
+              multiple = TRUE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addactivity"), "OK")
+        )
+      ))
+    })
+    
+    shiny::observeEvent(input$addactivity, {
+      if (input$newactid == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID!",
+          text = "You must give the activity an ID.",
+          type = "error"
+        )
+      } else if (input$newactid %in% reactval$activities$activity) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "The ID you gave to the activity is already assigned to another activity.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        newactivities <- tibble::tibble(
+          activity = input$newactid,
+          order = input$newactorder,
+          type = input$newacttype
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newactlabels <- tibble::tibble(
+          activity = input$newactid,
+          language = base::unique(course_data()$languages$langiso),
+          label = input$newactlab,
+          description = input$newactdesc,
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newactattributes <- tibble::tibble(
+          activity = input$newactid,
+          outcomes = base::paste(input$newactoutcome, sep = " "),
+          resource = NA,
+          requirement = input$newactreq,
+          weigth = input$newactweight,
+          time_space = input$newacttimespace,
+          level = input$newactlevel,
+          social = input$newactsocial,
+          duration = input$newactduration,
+          start = input$newactstart,
+          end = input$newactend
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        neworig <- tibble::tibble(
+          origin = input$newactorig,
+          destination = input$newactid,
+          condition = "None"
+        ) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character)
+        
+        newdest <- tibble::tibble(
+          origin = input$newactid,
+          destination = input$newactdest,
+          condition = "None"
+        ) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$activities <- reactval$activities |>
+          dplyr::bind_rows(newactivities)
+        reactval$actlabels <- reactval$actlabels |>
+          dplyr::bind_rows(newactlabels)
+        reactval$actattributes <- reactval$actattributes |>
+          dplyr::bind_rows(newactattributes)
+        reactval$paths <- reactval$paths |>
+          dplyr::bind_rows(neworig) |>
+          dplyr::bind_rows(newdest)
+        
+        shinyalert::shinyalert(
+          title = "New activity added",
+          text = "The new activity has been successfully added to the database.",
+          type = "success"
+        )
+      }
+    })
     
     # ANALYSES OF DESIGN #######################################################
     
@@ -1989,6 +2263,16 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     shiny::observeEvent(input$savepaths, {
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
+      
+      actattributes <- reactval$actattributes |>
+        dplyr::left_join(
+          dplyr::select(reactval$activities, activity, order),
+          by = "activity"
+        ) |>
+        dplyr::mutate(order = base::as.numeric(order)) |>
+        dplyr::arrange(order) |>
+        dplyr::select(-order)
+      
       writexl::write_xlsx(
         base::list(
           outcomes = reactval$outcomes,
@@ -1997,7 +2281,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           activities = reactval$activities,
           paths = reactval$paths,
           actlabels = reactval$actlabels,
-          actattributes = reactval$actattributes,
+          actattributes = actattributes,
           attributes = reactval$attributes,
           students = reactval$students,
           interactions = reactval$interactions
@@ -2036,7 +2320,6 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     shiny::observeEvent(input$exportpaths, {
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
-      
     })
     
     
