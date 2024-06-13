@@ -28,16 +28,30 @@
 design_path_ui <- function(id){
   ns <- shiny::NS(id)
   base::list(
+    shiny::tags$head(
+      shiny::tags$style(
+        shiny::HTML(".shiny-notification {
+              height: 100px;
+              width: 800px;
+              position:fixed;
+              top: calc(50% - 50px);;
+              left: calc(50% - 400px);;
+            }
+           "
+        )
+      )
+    ),
     shiny::fluidRow(
       shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
-      shiny::column(2, shiny::actionButton(
-        ns("loadpath"), "Load",
-        icon = shiny::icon("rotate"),
-        style = "width:100%;color:#FFFFFF;background-color:#006633;"
-      )),
+      
       shiny::column(2, shiny::actionButton(
         ns("savepaths"), "Save",
         icon = shiny::icon("floppy-disk"),
+        style = "width:100%;color:#FFFFFF;background-color:#006633;"
+      )),
+      shiny::column(2, shiny::actionButton(
+        ns("loadpath"), "Reload",
+        icon = shiny::icon("upload"),
         style = "width:100%;color:#FFFFFF;background-color:#003366;"
       )),
       shiny::column(2, shiny::actionButton(
@@ -64,46 +78,18 @@ design_path_ui <- function(id){
           title = "Map the general and specific learning outcomes for a course."
         ),
         shiny::fluidRow(
-          shinydashboardPlus::box(
-            title = "Create and edit outcomes",
-            status = "navy",
-            solidHeader = TRUE,
-            width = 10,
-            collapsible = TRUE,
-            collapsed = TRUE,
-            closable = FALSE,
-            icon = shiny::icon("list"),
-            gradient = FALSE,
-            shiny::actionButton(ns("updateoutcomes"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
-            rhandsontable::rHandsontableOutput(ns("editoutcomes"))
-          ),
-          shinydashboardPlus::box(
-            title = "Create and edit connections",
-            status = "primary",
-            solidHeader = TRUE,
-            width = 2,
-            collapsible = TRUE,
-            collapsed = TRUE,
-            closable = FALSE,
-            icon = shiny::icon("circle-nodes"),
-            gradient = FALSE,
-            shiny::actionButton(ns("updateconnections"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
-            rhandsontable::rHandsontableOutput(ns("editconnections"))
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(2, shiny::selectInput(
+          shiny::column(1, shiny::selectInput(
             ns("slctlayoutoutcomes"), "Layout",
             choices = c("dh","drl","fr","graphopt","kk"),
             selected = "fr",
             width = "100%"
           )),
-          shiny::column(2, shiny::numericInput(
+          shiny::column(1, shiny::numericInput(
             ns("defseedoutcomes"), "Seed",
             value = 1, min = 1, max = 1000, step = 1,
             width = "100%"
           )),
-          shiny::column(2, shiny::numericInput(
+          shiny::column(1, shiny::numericInput(
             ns("defscalingoutcomes"), "Scale",
             value = 1, min = 0.01, max = 100, step = 0.01,
             width = "100%"
@@ -118,10 +104,41 @@ design_path_ui <- function(id){
             ),
             justified = TRUE, width = "100%"
           )),
-          shiny::column(5, shiny::uiOutput(ns("egooutcomeselection")))
+          shiny::column(5, shiny::uiOutput(ns("egooutcomeselection"))),
+          shiny::column(1, shiny::actionButton(ns("newoutcome"), "New outcome", icon = shiny::icon("circle-dot"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#000099;")),
+          shiny::column(1, shiny::actionButton(ns("splitoutcome"), "Split outcome", icon = shiny::icon("scissors"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#003366;")),
+          shiny::column(1, shiny::actionButton(ns("newconnection"), "New link", icon = shiny::icon("arrow-right"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#006633;"))
         ),
         shiny::uiOutput(ns("outcomemap")),
-        DT::dataTableOutput(ns("outcometable"))
+        DT::dataTableOutput(ns("outcometable")),
+        shiny::fluidRow(
+          shinydashboardPlus::box(
+            title = "Edit outcomes",
+            status = "navy",
+            solidHeader = TRUE,
+            width = 10,
+            collapsible = TRUE,
+            collapsed = TRUE,
+            closable = FALSE,
+            icon = shiny::icon("list"),
+            gradient = FALSE,
+            shiny::actionButton(ns("updateoutcomes"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+            rhandsontable::rHandsontableOutput(ns("editoutcomes"))
+          ),
+          shinydashboardPlus::box(
+            title = "Edit connections",
+            status = "primary",
+            solidHeader = TRUE,
+            width = 2,
+            collapsible = TRUE,
+            collapsed = TRUE,
+            closable = FALSE,
+            icon = shiny::icon("circle-nodes"),
+            gradient = FALSE,
+            shiny::actionButton(ns("updateconnections"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+            rhandsontable::rHandsontableOutput(ns("editconnections"))
+          )
+        )
       ),
       shiny::tabPanel(
         title = shiny::span(
@@ -129,63 +146,18 @@ design_path_ui <- function(id){
           title = "Define sequences of activities to show the different paths through the course."
         ),
         shiny::fluidRow(
-          shinydashboardPlus::box(
-            title = "Create activities",
-            status = "maroon",
-            solidHeader = TRUE,
-            width = 6,
-            collapsible = TRUE,
-            collapsed = TRUE,
-            closable = FALSE,
-            icon = shiny::icon("list"),
-            gradient = FALSE,
-            shiny::fluidRow(
-              shiny::column(6, shiny::actionButton(ns("updateactlist"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;")),
-              shiny::column(6, shiny::actionButton(ns("newactivity"), "New", icon = shiny::icon("wand-magic-sparkles"), style = "width:100%;color:#FFFFFF;background-color:#006633;"))
-            ),
-            rhandsontable::rHandsontableOutput(ns("createactivities"))
-          ),
-          shinydashboardPlus::box(
-            title = "Edit activities' attributes",
-            status = "danger",
-            solidHeader = TRUE,
-            width = 3,
-            collapsible = TRUE,
-            collapsed = TRUE,
-            closable = FALSE,
-            icon = shiny::icon("id-card"),
-            gradient = FALSE,
-            shiny::actionButton(ns("updateactattr"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
-            editR::selection_ui(ns("slctact"), "Activity:"),
-            shiny::uiOutput(ns("editactivities"))
-          ),
-          shinydashboardPlus::box(
-            title = "Create and edit paths",
-            status = "warning",
-            solidHeader = TRUE,
-            width = 3,
-            collapsible = TRUE,
-            collapsed = TRUE,
-            closable = FALSE,
-            icon = shiny::icon("circle-nodes"),
-            gradient = FALSE,
-            shiny::actionButton(ns("updatepaths"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
-            rhandsontable::rHandsontableOutput(ns("editpaths"))
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(2, shiny::selectInput(
+          shiny::column(1, shiny::selectInput(
             ns("slctlayoutactivities"), "Layout",
             choices = c("dh","drl","fr","graphopt","kk"),
             selected = "fr",
             width = "100%"
           )),
-          shiny::column(2, shiny::numericInput(
+          shiny::column(1, shiny::numericInput(
             ns("defseedactivities"), "Seed",
             value = 1, min = 1, max = 1000, step = 1,
             width = "100%"
           )),
-          shiny::column(2, shiny::numericInput(
+          shiny::column(1, shiny::numericInput(
             ns("defscalingactivities"), "Scale",
             value = 1, min = 0.1, max = 100, step = 0.1,
             width = "100%"
@@ -200,9 +172,54 @@ design_path_ui <- function(id){
             ),
             justified = TRUE
           )),
-          shiny::column(5, shiny::uiOutput(ns("egoactivityselection")))
+          shiny::column(5, shiny::uiOutput(ns("egoactivityselection"))),
+          shiny::column(1, shiny::actionButton(ns("newactivity"), "New activity", icon = shiny::icon("list-check"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#000099;")),
+          shiny::column(1, shiny::actionButton(ns("splitactivity"), "Split activity", icon = shiny::icon("scissors"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#003366;")),
+          shiny::column(1, shiny::actionButton(ns("newpath"), "New path", icon = shiny::icon("arrow-right"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#006633;"))
         ),
         shiny::uiOutput(ns("activitymap")),
+        shiny::fluidRow(
+          shinydashboardPlus::box(
+            title = "Edit activities' attributes",
+            status = "danger",
+            solidHeader = TRUE,
+            width = 12,
+            collapsible = TRUE,
+            collapsed = TRUE,
+            closable = FALSE,
+            icon = shiny::icon("id-card"),
+            gradient = FALSE,
+            shiny::actionButton(ns("updateactattr"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+            editR::selection_ui(ns("slctact"), "Activity:"),
+            shiny::uiOutput(ns("editactivities"))
+          ),
+          shinydashboardPlus::box(
+            title = "Edit activities",
+            status = "maroon",
+            solidHeader = TRUE,
+            width = 9,
+            collapsible = TRUE,
+            collapsed = TRUE,
+            closable = FALSE,
+            icon = shiny::icon("list"),
+            gradient = FALSE,
+            shiny::actionButton(ns("updateactlist"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+            rhandsontable::rHandsontableOutput(ns("createactivities"))
+          ),
+          shinydashboardPlus::box(
+            title = "Edit paths",
+            status = "warning",
+            solidHeader = TRUE,
+            width = 3,
+            collapsible = TRUE,
+            collapsed = TRUE,
+            closable = FALSE,
+            icon = shiny::icon("circle-nodes"),
+            gradient = FALSE,
+            shiny::actionButton(ns("updatepaths"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+            rhandsontable::rHandsontableOutput(ns("editpaths"))
+          )
+        ),
         DT::dataTableOutput(ns("activitytable"))
       ),
       shiny::tabPanel(

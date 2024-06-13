@@ -72,6 +72,7 @@
 #' @importFrom lubridate week
 #' @importFrom purrr map
 #' @importFrom purrr map_chr
+#' @importFrom purrr safely
 #' @importFrom readxl read_excel
 #' @importFrom rhandsontable hot_cols
 #' @importFrom rhandsontable hot_context_menu
@@ -97,6 +98,7 @@
 #' @importFrom shiny sliderInput
 #' @importFrom shiny tagList
 #' @importFrom shinyWidgets airDatepickerInput
+#' @importFrom shinyWidgets colorPickr
 #' @importFrom shinyWidgets pickerInput
 #' @importFrom shinyWidgets radioGroupButtons
 #' @importFrom shinyWidgets sliderTextInput
@@ -211,6 +213,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     outdegree <- NULL
     power <- NULL
     shapesize <- NULL
+    resource <- NULL
     
     
     
@@ -222,6 +225,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     pathfile <- shiny::reactive({
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
+      input$loadpath
       base::paste0(
         course_paths()$subfolders$paths, "/",
         stringr::str_replace(tree()$course$tree[[1]], "RData$", "xlsx")
@@ -250,9 +254,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
-    shiny::observeEvent(input$loadpath, {
+    shiny::observe({
       shiny::req(!base::is.null(pathfile()))
-      
       if (!base::file.exists(pathfile())){
         reactval$outcomes <- tibble::tibble(
           outcome = base::as.character(NA),
@@ -396,7 +399,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(labels, by = "outcome") |>
         dplyr::select(outcome, label, description, lmsid, URL, order, type, color) |>
         dplyr::mutate(
-          type = base::factor(type, levels = c("PRE", "SPE", "GEN")),
+          type = base::factor(type, levels = c("GEN","SPE","PRE")),
           order = base::as.numeric(order)
         ) |>
         dplyr::arrange(order)
@@ -573,140 +576,171 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(!base::is.null(input$slctlang))
       shiny::req(!base::is.null(outcomelist()))
       
-      outcome_graph <- DiagrammeR::create_graph()
-      
-      nodes <- outcomelist() |>
-        tidyr::replace_na(base::list(description = " ")) |>
-        dplyr::mutate(
-          shape = dplyr::case_when(
-            type == "PRE" ~ "rectangle",
-            type == "GEN" ~ "star",
-            TRUE ~ "ellipse"
-          ),
-          simplelab = stringr::str_replace_all(label, "_", " "),
-          tooltip = base::paste(simplelab, description, sep = "\n\n"),
-          tooltip = base::paste(tooltip, outcome, sep = "\n\n")
-        ) |>
-        dplyr::select(outcome, label, shape, color, tooltip, URL) |>
-        dplyr::mutate(label = stringr::str_replace_all(label, "_", "\n"))
-      
-      for (i in base::seq_len(base::nrow(nodes))) {
-        outcome_graph <- DiagrammeR::add_node(
-          outcome_graph,
-          label = nodes[[i,'label']]
+      shiny::withProgress(message = "Create the network of outcomes", {
+        
+        shiny::incProgress(1/10)
+        
+        outcome_graph <- DiagrammeR::create_graph()
+        
+        shiny::incProgress(1/10)
+        
+        nodes <- outcomelist() |>
+          tidyr::replace_na(base::list(description = " ")) |>
+          dplyr::mutate(
+            shape = dplyr::case_when(
+              type == "PRE" ~ "rectangle",
+              type == "GEN" ~ "star",
+              TRUE ~ "ellipse"
+            ),
+            simplelab = stringr::str_replace_all(label, "_", " "),
+            tooltip = base::paste(simplelab, description, sep = "\n\n"),
+            tooltip = base::paste(tooltip, outcome, sep = "\n\n")
+          ) |>
+          dplyr::select(outcome, label, shape, color, tooltip, URL) |>
+          dplyr::mutate(label = stringr::str_replace_all(label, "_", "\n"))
+        
+        shiny::incProgress(1/10)
+        
+        for (i in base::seq_len(base::nrow(nodes))) {
+          outcome_graph <- DiagrammeR::add_node(
+            outcome_graph,
+            label = nodes[[i,'label']]
+          )
+        }
+        
+        shiny::incProgress(1/10)
+        
+        edges <- reactval$connections |>
+          dplyr::left_join(dplyr::select(outcomelist(), origin = outcome, origlab = label), by = "origin") |>
+          dplyr::left_join(dplyr::select(outcomelist(), destination = outcome, destlab = label), by = "destination") |>
+          dplyr::select(origin = origlab, destination = destlab) |>
+          dplyr::mutate(
+            origin = stringr::str_replace_all(origin, "_", "\n"),
+            destination = stringr::str_replace_all(destination, "_", "\n")
+          )
+        
+        shiny::incProgress(1/10)
+        
+        for (i in base::seq_len(base::nrow(edges))) {
+          outcome_graph <- DiagrammeR::add_edge(
+            outcome_graph,
+            from = edges$origin[[i]],
+            to = edges$destination[[i]]
+          )
+        }
+        
+        shiny::incProgress(1/10)
+        
+        outcome_graph$nodes_df <- outcome_graph$nodes_df |>
+          dplyr::mutate(
+            shape = nodes$shape,
+            width = 0.5,
+            height = 0.5,
+            fontsize = 8,
+            color = base::paste0(nodes$color, "66"),
+            fillcolor = base::paste0(nodes$color, "33"),
+            fontcolor = "black",
+            penwidth = 3,
+            tooltip = nodes$tooltip,
+            URL = nodes$URL,
+            outcome = nodes$outcome
+          )
+        
+        shiny::incProgress(1/10)
+        
+        base::set.seed(input$defseedoutcomes)
+        
+        if (!base::is.null(input$slctegooutcome)){
+          x <- input$slctegooutcome
+          y <- outcome_graph$nodes_df |> dplyr::filter(outcome %in% x)
+          y <- y$id
+          tmp <- outcome_graph$edges_df |>
+            dplyr::filter(from %in% y | to %in% y)
+          z <- base::unique(c(tmp$from, tmp$to))
+          outcome_graph$nodes_df <- dplyr::filter(outcome_graph$nodes_df, id %in% z)
+          outcome_graph$edges_df <- outcome_graph$edges_df |>
+            dplyr::filter(from %in% z, to %in% z)
+        } else {
+          outcome_graph <- outcome_graph
+        }
+        
+        shiny::incProgress(1/10)
+        
+        layout_basis <- DiagrammeR::to_igraph(outcome_graph)
+        
+        layout <- base::switch(
+          input$slctlayoutoutcomes,
+          dh = igraph::layout_with_dh(layout_basis),
+          drl = igraph::layout_with_drl(layout_basis),
+          fr = igraph::layout_with_fr(layout_basis),
+          graphopt = igraph::layout_with_graphopt(layout_basis),
+          kk = igraph::layout_with_kk(layout_basis)
         )
-      }
-      
-      edges <- reactval$connections |>
-        dplyr::left_join(dplyr::select(outcomelist(), origin = outcome, origlab = label), by = "origin") |>
-        dplyr::left_join(dplyr::select(outcomelist(), destination = outcome, destlab = label), by = "destination") |>
-        dplyr::select(origin = origlab, destination = destlab) |>
-        dplyr::mutate(
-          origin = stringr::str_replace_all(origin, "_", "\n"),
-          destination = stringr::str_replace_all(destination, "_", "\n")
+        
+        shiny::incProgress(1/10)
+        
+        outcome_graph$nodes_df$x <- layout[,1] / input$defscalingoutcomes
+        outcome_graph$nodes_df$y <- layout[,2] / input$defscalingoutcomes
+        
+        outcome_centrality <- tibble::tibble(
+          outcome = igraph::vertex_attr(layout_basis, "outcome"),
+          degree = igraph::degree(layout_basis, mode = "all"),
+          indegree = igraph::degree(layout_basis, mode = "in"),
+          outdegree = igraph::degree(layout_basis, mode = "out"),
+          closeness = base::round(igraph::closeness(layout_basis, mode = "all")*100,2),
+          incloseness = base::round(igraph::closeness(layout_basis, mode = "in")*100,2),
+          outcloseness = base::round(igraph::closeness(layout_basis, mode = "out")*100,2),
+          betweenness = base::round(igraph::betweenness(layout_basis),2),
+          authority = base::round(igraph::authority_score(layout_basis)$vector*100,0),
+          hub = base::round(igraph::hub_score(layout_basis)$vector*100,0),
+          strength = igraph::strength(layout_basis),
+          constraint = base::round(igraph::constraint(layout_basis)*100,0),
+          harmonic = base::round(igraph::harmonic_centrality(layout_basis)*10,0),
+          eigen = base::round(igraph::eigen_centrality(layout_basis)$vector*100,0),
+          power = base::round(igraph::power_centrality(layout_basis)*100,0),
+          negpower = base::round(igraph::power_centrality(layout_basis, exponent = -1)*100,0),
         )
-      
-      for (i in base::seq_len(base::nrow(edges))) {
-        outcome_graph <- DiagrammeR::add_edge(
-          outcome_graph,
-          from = edges$origin[[i]],
-          to = edges$destination[[i]]
-        )
-      }
-      
-      outcome_graph$nodes_df <- outcome_graph$nodes_df |>
-        dplyr::mutate(
-          shape = nodes$shape,
-          width = 0.5,
-          height = 0.5,
-          fontsize = 8,
-          color = base::paste0(nodes$color, "66"),
-          fillcolor = base::paste0(nodes$color, "33"),
-          fontcolor = "black",
-          penwidth = 3,
-          tooltip = nodes$tooltip,
-          URL = nodes$URL,
-          outcome = nodes$outcome
-        )
-      
-      base::set.seed(input$defseedoutcomes)
-      
-      if (!base::is.null(input$slctegooutcome)){
-        x <- input$slctegooutcome
-        y <- outcome_graph$nodes_df |> dplyr::filter(outcome %in% x)
-        y <- y$id
-        tmp <- outcome_graph$edges_df |>
-          dplyr::filter(from %in% y | to %in% y)
-        z <- base::unique(c(tmp$from, tmp$to))
-        outcome_graph$nodes_df <- dplyr::filter(outcome_graph$nodes_df, id %in% z)
-        outcome_graph$edges_df <- outcome_graph$edges_df |>
-          dplyr::filter(from %in% z, to %in% z)
-      } else {
-        outcome_graph <- outcome_graph
-      }
-      
-      layout_basis <- DiagrammeR::to_igraph(outcome_graph)
-      
-      layout <- base::switch(
-        input$slctlayoutoutcomes,
-        dh = igraph::layout_with_dh(layout_basis),
-        drl = igraph::layout_with_drl(layout_basis),
-        fr = igraph::layout_with_fr(layout_basis),
-        graphopt = igraph::layout_with_graphopt(layout_basis),
-        kk = igraph::layout_with_kk(layout_basis)
-      )
-      
-      outcome_graph$nodes_df$x <- layout[,1] / input$defscalingoutcomes
-      outcome_graph$nodes_df$y <- layout[,2] / input$defscalingoutcomes
-      
-      outcome_centrality <- tibble::tibble(
-        outcome = igraph::vertex_attr(layout_basis, "outcome"),
-        degree = igraph::degree(layout_basis, mode = "all"),
-        indegree = igraph::degree(layout_basis, mode = "in"),
-        outdegree = igraph::degree(layout_basis, mode = "out"),
-        closeness = base::round(igraph::closeness(layout_basis, mode = "all")*100,2),
-        incloseness = base::round(igraph::closeness(layout_basis, mode = "in")*100,2),
-        outcloseness = base::round(igraph::closeness(layout_basis, mode = "out")*100,2),
-        betweenness = base::round(igraph::betweenness(layout_basis),2),
-        authority = base::round(igraph::authority_score(layout_basis)$vector*100,0),
-        hub = base::round(igraph::hub_score(layout_basis)$vector*100,0),
-        strength = igraph::strength(layout_basis),
-        constraint = base::round(igraph::constraint(layout_basis)*100,0),
-        harmonic = base::round(igraph::harmonic_centrality(layout_basis)*10,0),
-        eigen = base::round(igraph::eigen_centrality(layout_basis)$vector*100,0),
-        power = base::round(igraph::power_centrality(layout_basis)*100,0),
-        negpower = base::round(igraph::power_centrality(layout_basis, exponent = -1)*100,0),
-      )
-      outcome_graph$nodes_df <- outcome_graph$nodes_df |>
-        dplyr::left_join(outcome_centrality, by = "outcome")
+        outcome_graph$nodes_df <- outcome_graph$nodes_df |>
+          dplyr::left_join(outcome_centrality, by = "outcome")
+        
+        shiny::incProgress(1/10)
+      })
       
       outcome_graph
     })
     
     output$outcomemap <- shiny::renderUI({
       shiny::req(!base::is.null(outcome_graph()))
-      outcome_graph <- outcome_graph()
-      if ("switchxy" %in% input$outcomeaxes){
-        xaxis <- outcome_graph$nodes_df$y
-        yaxis <- outcome_graph$nodes_df$x
-      } else {
-        xaxis <- outcome_graph$nodes_df$x
-        yaxis <- outcome_graph$nodes_df$y
-      }
-      if ("invertx" %in% input$outcomeaxes){
-        xaxis <- -xaxis
-      }
-      if ("inverty" %in% input$outcomeaxes){
-        yaxis <- -yaxis
-      }
-      outcome_graph$nodes_df$x <- xaxis
-      outcome_graph$nodes_df$y <- yaxis
-      DiagrammeR::render_graph(
-        outcome_graph,
-        width = "1600px",
-        height = "800px",
-        as_svg = TRUE
-      )
+      
+      shiny::withProgress(message = "Creating the outcome map", {
+        shiny::incProgress(1/3)
+        outcome_graph <- outcome_graph()
+        if ("switchxy" %in% input$outcomeaxes){
+          xaxis <- outcome_graph$nodes_df$y
+          yaxis <- outcome_graph$nodes_df$x
+        } else {
+          xaxis <- outcome_graph$nodes_df$x
+          yaxis <- outcome_graph$nodes_df$y
+        }
+        if ("invertx" %in% input$outcomeaxes){
+          xaxis <- -xaxis
+        }
+        if ("inverty" %in% input$outcomeaxes){
+          yaxis <- -yaxis
+        }
+        shiny::incProgress(1/3)
+        outcome_graph$nodes_df$x <- xaxis
+        outcome_graph$nodes_df$y <- yaxis
+        graph <- DiagrammeR::render_graph(
+          outcome_graph,
+          width = "1600px",
+          height = "800px",
+          as_svg = TRUE
+        )
+        shiny::incProgress(1/3)
+      })
+      
+      graph
     })
     
     output$outcometable <- DT::renderDataTable({
@@ -716,6 +750,320 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           label, indegree, outdegree, closeness, betweenness, authority,
           hub, strength, constraint, harmonic, eigen, power, negpower
         )
+    })
+    
+    shiny::observeEvent(input$newoutcome, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      types <- c("GEN","SPE","PRE")
+      base::names(types) <- c("Generic Learning Outcome","Specific Learning Outcome","Prerequisite")
+      
+      outcomes <- outcomelist()$outcome
+      base::names(outcomes) <- stringr::str_replace_all(outcomelist()$label, "_", " ")
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add a new outcome",
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::textInput(ns("newoutid"), "ID:", value = "", width = "100%")
+          ),
+          shiny::column(
+            6,
+            shiny::textInput(ns("newoutlab"), "Label:", value = "Write a label here", width = "100%")
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              ns("newouttype"), "Type:",
+              choices = types, selected = types[1],
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            1,
+            shiny::textInput(ns("newoutorder"), "Order:", value = NA, width = "100%")
+          ),
+          shiny::column(
+            1,
+            shinyWidgets::colorPickr(ns("newoutcolor"), "Color:")
+          )
+        ),
+        shiny::textAreaInput(ns("newoutdesc"), "Description:", value = "", width = "100%"),
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newoutorig"), "Origins:",
+              choices = outcomes, selected = NULL,
+              multiple = TRUE, width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newoutdest"), "Destinations:",
+              choices = outcomes, selected = NULL,
+              multiple = TRUE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addoutcome"), "OK")
+        )
+      ))
+    })
+    
+    shiny::observeEvent(input$addoutcome, {
+      if (input$newoutid == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID!",
+          text = "You must give the outcome an ID.",
+          type = "error"
+        )
+      } else if (input$newoutid %in% reactval$outcomes$outcome) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "The ID you gave to the outcome is already assigned to another outcome.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        newoutcomes <- tibble::tibble(
+          outcome = input$newoutid,
+          order = input$newoutorder,
+          type = input$newouttype,
+          color = input$newoutcolor
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newoutlabels <- tibble::tibble(
+          outcome = input$newoutid,
+          language = base::unique(course_data()$languages$langiso),
+          label = input$newoutlab,
+          description = input$newoutdesc,
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$outcomes <- reactval$outcomes |>
+          dplyr::bind_rows(newoutcomes)
+        reactval$outlabels <- reactval$outlabels |>
+          dplyr::bind_rows(newoutlabels)
+        
+        newconnections <- dplyr::bind_rows(
+          tibble::tibble(
+            origin = input$newoutorig,
+            destination = input$newoutid,
+            condition = "None"
+          ),
+          tibble::tibble(
+            origin = input$newoutid,
+            destination = input$newoutdest,
+            condition = "None"
+          )
+        ) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character) |>
+          dplyr::filter(
+            origin %in% reactval$outcomes$outcome,
+            destination %in% reactval$outcomes$outcome
+          )
+        
+        reactval$connections <- reactval$connections |>
+          dplyr::bind_rows(newconnections)
+        
+        shinyalert::shinyalert(
+          title = "New outcome added",
+          text = "The new outcome has been successfully added to the database.",
+          type = "success"
+        )
+      }
+    })
+    
+    shiny::observeEvent(input$splitoutcome, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      outcomes <- outcomelist()$outcome
+      base::names(outcomes) <- outcomelist()$label
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Split an outcome",
+        shiny::selectInput(
+          ns("frominitout"), "Outcome to split:",
+          choices = outcomes,
+          selected = NULL,
+          multiple = FALSE, width = "100%"
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            5,
+            shiny::textInput(ns("tooriginoutid"), "Into origin:", value = "", width = "100%"),
+            shiny::textInput(ns("tooriginoutlab"), "With the label:", value = "", width = "100%")
+          ),
+          shiny::column(
+            5,
+            shiny::textInput(ns("todestoutid"), "Into destination:", value = "", width = "100%"),
+            shiny::textInput(ns("todestoutlab"), "With the label:", value = "", width = "100%")
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("splitout"), "OK")
+        )
+      ))
+    })
+    
+    shiny::observeEvent(input$splitout, {
+      
+      if (input$tooriginoutid == "" | input$tooriginoutlab == "" |
+          input$todestoutid == "" | input$todestoutlab == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID or labels!",
+          text = "You must IDS and labels to all outcomes.",
+          type = "error"
+        )
+      } else if (input$tooriginoutid %in% reactval$outcomes$outcome |
+                 input$todestoutid %in% reactval$outcomes$outcome) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "At least one of the ID you gave to the outcomes is already assigned to another outcome.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        shiny::req(!base::is.null(outcomelist()))
+        selectedout <- outcomelist() |>
+          dplyr::filter(outcome == input$frominitout) |>
+          dplyr::select(outcome, order, type, color)
+        
+        newoutcomes <- tibble::tibble(
+          outcome = c(input$tooriginoutid, input$todestoutid),
+          order = selectedout$order[1],
+          type = selectedout$type[1],
+          color = selectedout$color[1]
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        neworiglabels <- tibble::tibble(
+          outcome = input$tooriginoutid,
+          language = base::unique(course_data()$languages$langiso),
+          label = input$tooriginoutlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newdestlabels <- tibble::tibble(
+          outcome = input$todestoutid,
+          language = base::unique(course_data()$languages$langiso),
+          label = input$todestoutlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$outcomes <- reactval$outcomes |>
+          dplyr::filter(outcome != input$frominitout) |>
+          dplyr::bind_rows(newoutcomes)
+        reactval$outlabels <- reactval$outlabels |>
+          dplyr::filter(outcome != input$frominitout) |>
+          dplyr::bind_rows(neworiglabels) |>
+          dplyr::bind_rows(newdestlabels)
+        
+        allbefore <- reactval$connections |>
+          dplyr::filter(destination == input$frominitout) |>
+          dplyr::mutate(destination = input$tooriginoutid)
+        
+        allafter <- reactval$connections |>
+          dplyr::filter(origin == input$frominitout) |>
+          dplyr::mutate(origin = input$todestoutid)
+        
+        newconnections <- tibble::tibble(
+          origin = input$tooriginoutid,
+          destination = input$todestoutid
+        ) |>
+          dplyr::bind_rows(allbefore) |>
+          dplyr::bind_rows(allafter) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$connections <- reactval$connections |>
+          dplyr::filter(
+            origin != input$frominitout,
+            destination != input$frominitout
+          ) |>
+          dplyr::bind_rows(newconnections) |>
+          dplyr::mutate_all(base::as.character)
+        
+        shinyalert::shinyalert(
+          title = "Outcome splitted",
+          text = "The outcome has been successfully splitted in the database.",
+          type = "success"
+        )
+      }
+    })
+    
+    shiny::observeEvent(input$newconnection, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      outcomes <- c(outcomelist()$outcome)
+      base::names(outcomes) <- c(stringr::str_replace_all(outcomelist()$label, "_", " "))
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add or edit a connection",
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newconnectionorig"), "Origin:",
+              choices = outcomes,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newconnectiondest"), "Destination:",
+              choices = outcomes,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addconnection"), "OK")
+        )
+      ))
+    })
+    
+    shiny::observeEvent(input$addconnection, {
+      shiny::removeModal()
+      
+      newconnection <- tibble::tibble(
+        origin = input$newconnectionorig,
+        destination = input$newconnectiondest
+      )
+      
+      connections <- reactval$connections |>
+        dplyr::anti_join(newconnection, by = c("origin","destination")) |>
+        dplyr::bind_rows(newconnection)
+      
+      reactval$connections <- connections
+      
+      shinyalert::shinyalert(
+        title = "Connection added or edited",
+        text = "The connection has been added or changed in the database.",
+        type = "success"
+      )
     })
     
     
@@ -1131,6 +1479,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     # Visualize the activity map.
     
     activity_labels <- shiny::reactive({
+      input$refreshmapact
       shiny::req(!base::is.null(reactval$outcomes))
       outcomes <- dplyr::select(reactval$outcomes, outcome, color)
       req <- reactval$attributes |>
@@ -1155,7 +1504,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             y <- stringr::str_split(x, " ", simplify = TRUE) |>
               base::as.character()
             y[1]
-          })
+          }),
+          order = base::as.numeric(order)
         ) |>
         dplyr::left_join(outcomes, by = "outcome") |>
         tidyr::replace_na(base::list(color = "#FFFFFF")) |>
@@ -1164,19 +1514,23 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::left_join(ts, by = "time_space") |>
         dplyr::left_join(soc, by = "social") |>
         dplyr::select(-language) |>
-        tidyr::replace_na(base::list(end = "-"))
+        tidyr::replace_na(base::list(end = "-")) |>
+        dplyr::arrange(order)
     })
     
     output$egoactivityselection <- shiny::renderUI({
       shiny::req(!base::is.null(activity_labels()))
+      
       activities <- activity_labels() |>
         dplyr::select(activity, label, color, outcome) |>
         dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
       
       if (!base::is.null(input$slctegooutcome)){
-        activities <- activities |>
-          dplyr::filter(outcome %in% input$slctegooutcome)
-      }
+        slctactivities <- activities |>
+          dplyr::filter(outcome %in% input$slctegooutcome) |>
+          dplyr::select(activity) |>
+          base::unlist()
+      } else slctactivities <- NULL
       
       activitychoices <- activities$activity
       base::names(activitychoices) <- activities$label
@@ -1187,7 +1541,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         inputId = ns("slctegoactivity"),
         label = "Focus on activities:", 
         choices = activitychoices,
-        selected = activitychoices,
+        selected = slctactivities,
         choicesOpt = base::list(style = activitycolors),
         multiple = TRUE,
         width = "100%"
@@ -1195,207 +1549,245 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     activity_graph <- shiny::reactive({
-      shiny::req(!base::is.null(input$slctlang))
       shiny::req(!base::is.null(activity_labels()))
       
-      activity_graph <- DiagrammeR::create_graph()
-      
-      nodes <- activity_labels() |>
-        tidyr::replace_na(base::list(description = " ")) |>
-        dplyr::mutate(weigth = base::as.numeric(weigth)) |>
-        dplyr::mutate(
-          shape = dplyr::case_when(
-            type == "Slide" ~ "square",
-            type == "Video" ~ "rectangle",
-            type == "Textbook" ~ "ellipse",
-            type == "Note" ~ "circle",
-            type == "Tutorial" ~ "hexagon",
-            type == "Game" ~ "septagon",
-            type == "Case" ~ "octagon",
-            type == "Test" ~ "star",
-            TRUE ~ "point"
-          ),
-          shapesize = dplyr::case_when(
-            requirement == "NEC" ~ 1.0,
-            requirement == "REC" ~ 0.9,
-            TRUE ~ 0.8
-          ),
-          alpha = dplyr::case_when(
-            requirement == "OPT" ~ "11",
-            requirement == "REC" ~ "33",
-            TRUE ~ "77"
-          ),
-          peripheries = dplyr::case_when(
-            time_space == "AOL" ~ 1,
-            time_space == "SOL" ~ 2,
-            TRUE ~ 3
-          ),
-          penwidth = 0.5 + weigth * 10,
-          tooltip = base::paste0(
-            stringr::str_replace_all(label, "_", " "), "\n\n",
-            description, "\n\n",
-            type, " | ", levlab, "\n",
-            reqlab, " | ", base::round(weigth * 100,0), "%\n",
-            soclab, " | ", tslab, "\n",
-            duration, " minutes | ", end, "\n\n",
-            activity
-          )
-        ) |>
-        dplyr::mutate(
-          label = stringr::str_replace_all(label, "_", "\n"),
-          bordercolor = base::paste(color, "CC", sep = ""),
-          fillcolor = base::paste(color, alpha, sep = "")
-        ) |>
-        dplyr::select(
-          activity, requirement, label, shape, shapesize, peripheries, penwidth, bordercolor, fillcolor, fontcolor, tooltip, URL
-        )
-      
-      for (i in base::seq_len(base::nrow(nodes))) {
-        activity_graph <- DiagrammeR::add_node(
-          activity_graph,
-          label = nodes[[i,'label']]
-        )
-      }
-      
-      edges <- reactval$paths |>
-        dplyr::left_join(dplyr::select(nodes, origin = activity, laborig = label, reqorig = requirement), by = "origin") |>
-        dplyr::left_join(dplyr::select(nodes, destination = activity, labdest = label, reqdest = requirement), by = "destination") |>
-        dplyr::mutate(
-          color = dplyr::case_when(
-            condition == "Done" ~ "#0000FF",
-            condition == "Not OK" ~ "#990000",
-            condition == "OK" ~ "#006600",
-            TRUE ~ "#777777"
-          ),
-          style = dplyr::case_when(
-            reqorig == "NEC" & reqdest == "NEC" ~ "solid",
-            TRUE ~ "dashed"
-          ),
-          penwidth = dplyr::case_when(
-            style == "solid" & color != "#333333" ~ 5,
-            TRUE ~ 2
-          )
-        ) |>
-        dplyr::select(origin = laborig, destination = labdest, color, style, penwidth) |>
-        dplyr::mutate(
-          origin = stringr::str_replace_all(origin, "_", "\n"),
-          destination = stringr::str_replace_all(destination, "_", "\n")
-        )
-      
-      shiny::req(base::all(edges$origin %in% nodes$label))
-      shiny::req(base::all(edges$destination %in% nodes$label))
-      
-      for (i in base::seq_len(base::nrow(edges))) {
-        activity_graph <- DiagrammeR::add_edge(
-          activity_graph,
-          from = edges$origin[[i]],
-          to = edges$destination[[i]]
-        )
-      }
-      
-      activity_graph$nodes_df <- activity_graph$nodes_df |>
-        dplyr::mutate(
-          shape = nodes$shape,
-          width = nodes$shapesize,
-          height = nodes$shapesize,
-          fontsize = 10,
-          style = "filled",
-          color = nodes$bordercolor,
-          fillcolor = nodes$fillcolor,
-          fontcolor = "black",
-          penwidth = nodes$penwidth,
-          tooltip = nodes$tooltip,
-          URL = nodes$URL,
-          peripheries = nodes$peripheries,
-          activity = nodes$activity
-        )
-      
-      activity_graph$edges_df <- activity_graph$edges_df |>
-        dplyr::mutate(
-          style = edges$style,
-          penwidth = edges$penwidth,
-          color = edges$color
-        )
-      
-      base::set.seed(input$defseedactivities)
-      
-      if (!base::is.null(input$slctegoactivity)){
-        x <- input$slctegoactivity
-        y <- activity_graph$nodes_df |> dplyr::filter(activity %in% x)
-        y <- y$id
-        tmp <- activity_graph$edges_df |>
-          dplyr::filter(from %in% y | to %in% y)
-        z <- base::unique(c(tmp$from, tmp$to))
-        activity_graph$nodes_df <- dplyr::filter(activity_graph$nodes_df, id %in% z)
-        activity_graph$edges_df <- activity_graph$edges_df |>
-          dplyr::filter(from %in% z, to %in% z)
+      shiny::withProgress(message = "Building the network of activities...", {
+        shiny::incProgress(1/10)
         
-      } else {
-        activity_graph <- activity_graph
-      }
-      
-      layout_basis <- DiagrammeR::to_igraph(activity_graph)
-      
-      layout <- base::switch(
-        input$slctlayoutactivities,
-        dh = igraph::layout_with_dh(layout_basis),
-        drl = igraph::layout_with_drl(layout_basis),
-        fr = igraph::layout_with_fr(layout_basis),
-        graphopt = igraph::layout_with_graphopt(layout_basis),
-        kk = igraph::layout_with_kk(layout_basis)
-      )
-      
-      activity_graph$nodes_df$x <- layout[,1] / input$defscalingactivities
-      activity_graph$nodes_df$y <- layout[,2] / input$defscalingactivities
-      
-      activity_centrality <- tibble::tibble(
-        activity = igraph::vertex_attr(layout_basis, "activity"),
-        degree = igraph::degree(layout_basis, mode = "all"),
-        indegree = igraph::degree(layout_basis, mode = "in"),
-        outdegree = igraph::degree(layout_basis, mode = "out"),
-        closeness = base::round(igraph::closeness(layout_basis, mode = "all")*100,2),
-        incloseness = base::round(igraph::closeness(layout_basis, mode = "in")*100,2),
-        outcloseness = base::round(igraph::closeness(layout_basis, mode = "out")*100,2),
-        betweenness = base::round(igraph::betweenness(layout_basis),2),
-        authority = base::round(igraph::authority_score(layout_basis)$vector*100,0),
-        hub = base::round(igraph::hub_score(layout_basis)$vector*100,0),
-        strength = igraph::strength(layout_basis),
-        constraint = base::round(igraph::constraint(layout_basis)*100,0),
-        harmonic = base::round(igraph::harmonic_centrality(layout_basis)*10,0),
-        eigen = base::round(igraph::eigen_centrality(layout_basis)$vector*100,0),
-        power = base::round(igraph::power_centrality(layout_basis)*100,0),
-        negpower = base::round(igraph::power_centrality(layout_basis, exponent = -1)*100,0),
-      )
-      activity_graph$nodes_df <- activity_graph$nodes_df |>
-        dplyr::left_join(activity_centrality, by = "activity")
+        activity_graph <- DiagrammeR::create_graph()
+        
+        nodes <- activity_labels() |>
+          tidyr::replace_na(base::list(description = " ")) |>
+          dplyr::mutate(weigth = base::as.numeric(weigth)) |>
+          dplyr::mutate(
+            shape = dplyr::case_when(
+              type == "Slide" ~ "square",
+              type == "Video" ~ "rectangle",
+              type == "Textbook" ~ "ellipse",
+              type == "Note" ~ "circle",
+              type == "Tutorial" ~ "hexagon",
+              type == "Game" ~ "septagon",
+              type == "Case" ~ "octagon",
+              type == "Test" ~ "star",
+              TRUE ~ "point"
+            ),
+            shapesize = dplyr::case_when(
+              requirement == "NEC" ~ 1.0,
+              requirement == "REC" ~ 0.9,
+              TRUE ~ 0.8
+            ),
+            alpha = dplyr::case_when(
+              requirement == "OPT" ~ "11",
+              requirement == "REC" ~ "33",
+              TRUE ~ "77"
+            ),
+            peripheries = dplyr::case_when(
+              time_space == "AOL" ~ 1,
+              time_space == "SOL" ~ 2,
+              TRUE ~ 3
+            ),
+            penwidth = 0.5 + weigth * 10,
+            tooltip = base::paste0(
+              stringr::str_replace_all(label, "_", " "), "\n\n",
+              description, "\n\n",
+              type, " | ", levlab, "\n",
+              reqlab, " | ", base::round(weigth * 100,0), "%\n",
+              soclab, " | ", tslab, "\n",
+              duration, " minutes | ", end, "\n\n",
+              activity
+            )
+          ) |>
+          dplyr::mutate(
+            label = stringr::str_replace_all(label, "_", "\n"),
+            bordercolor = base::paste(color, "CC", sep = ""),
+            fillcolor = base::paste(color, alpha, sep = "")
+          ) |>
+          dplyr::select(
+            activity, requirement, label, shape, shapesize, peripheries, penwidth, bordercolor, fillcolor, fontcolor, tooltip, URL
+          )
+        
+        shiny::incProgress(1/10)
+        
+        for (i in base::seq_len(base::nrow(nodes))) {
+          activity_graph <- DiagrammeR::add_node(
+            activity_graph,
+            label = nodes[[i,'label']]
+          )
+        }
+        
+        shiny::incProgress(1/10)
+        
+        edges <- reactval$paths |>
+          dplyr::left_join(dplyr::select(nodes, origin = activity, laborig = label, reqorig = requirement), by = "origin") |>
+          dplyr::left_join(dplyr::select(nodes, destination = activity, labdest = label, reqdest = requirement), by = "destination") |>
+          dplyr::mutate(
+            color = dplyr::case_when(
+              condition == "Done" ~ "#0000FF",
+              condition == "Not OK" ~ "#990000",
+              condition == "OK" ~ "#006600",
+              TRUE ~ "#777777"
+            ),
+            style = dplyr::case_when(
+              reqorig == "NEC" & reqdest == "NEC" ~ "solid",
+              TRUE ~ "dashed"
+            ),
+            penwidth = dplyr::case_when(
+              style == "solid" & color != "#333333" ~ 5,
+              TRUE ~ 2
+            )
+          ) |>
+          dplyr::select(origin = laborig, destination = labdest, color, style, penwidth) |>
+          dplyr::mutate(
+            origin = stringr::str_replace_all(origin, "_", "\n"),
+            destination = stringr::str_replace_all(destination, "_", "\n")
+          )
+        
+        shiny::incProgress(1/10)
+        
+        shiny::req(base::all(edges$origin %in% nodes$label))
+        shiny::req(base::all(edges$destination %in% nodes$label))
+        
+        for (i in base::seq_len(base::nrow(edges))) {
+          activity_graph <- DiagrammeR::add_edge(
+            activity_graph,
+            from = edges$origin[[i]],
+            to = edges$destination[[i]]
+          )
+        }
+        
+        shiny::incProgress(1/10)
+        
+        activity_graph$nodes_df <- activity_graph$nodes_df |>
+          dplyr::mutate(
+            shape = nodes$shape,
+            width = nodes$shapesize,
+            height = nodes$shapesize,
+            fontsize = 10,
+            style = "filled",
+            color = nodes$bordercolor,
+            fillcolor = nodes$fillcolor,
+            fontcolor = "black",
+            penwidth = nodes$penwidth,
+            tooltip = nodes$tooltip,
+            URL = nodes$URL,
+            peripheries = nodes$peripheries,
+            activity = nodes$activity
+          )
+        
+        shiny::incProgress(1/10)
+        
+        activity_graph$edges_df <- activity_graph$edges_df |>
+          dplyr::mutate(
+            style = edges$style,
+            penwidth = edges$penwidth,
+            color = edges$color
+          )
+        
+        shiny::incProgress(1/10)
+        
+        base::set.seed(input$defseedactivities)
+        
+        if (!base::is.null(input$slctegoactivity)){
+          x <- input$slctegoactivity
+          y <- activity_graph$nodes_df |> dplyr::filter(activity %in% x)
+          y <- y$id
+          tmp <- activity_graph$edges_df |>
+            dplyr::filter(from %in% y | to %in% y)
+          z <- base::unique(c(tmp$from, tmp$to))
+          activity_graph$nodes_df <- dplyr::filter(activity_graph$nodes_df, id %in% z)
+          activity_graph$edges_df <- activity_graph$edges_df |>
+            dplyr::filter(from %in% z, to %in% z)
+          
+        } else {
+          activity_graph <- activity_graph
+        }
+        
+        shiny::incProgress(1/10)
+        
+        layout_basis <- DiagrammeR::to_igraph(activity_graph)
+        
+        shiny::incProgress(1/10)
+        
+        layout <- base::switch(
+          input$slctlayoutactivities,
+          dh = igraph::layout_with_dh(layout_basis),
+          drl = igraph::layout_with_drl(layout_basis),
+          fr = igraph::layout_with_fr(layout_basis),
+          graphopt = igraph::layout_with_graphopt(layout_basis),
+          kk = igraph::layout_with_kk(layout_basis)
+        )
+        
+        shiny::incProgress(1/10)
+        
+        activity_graph$nodes_df$x <- layout[,1] / input$defscalingactivities
+        activity_graph$nodes_df$y <- layout[,2] / input$defscalingactivities
+        
+        activity_centrality <- tibble::tibble(
+          activity = igraph::vertex_attr(layout_basis, "activity"),
+          degree = igraph::degree(layout_basis, mode = "all"),
+          indegree = igraph::degree(layout_basis, mode = "in"),
+          outdegree = igraph::degree(layout_basis, mode = "out"),
+          closeness = base::round(igraph::closeness(layout_basis, mode = "all")*100,2),
+          incloseness = base::round(igraph::closeness(layout_basis, mode = "in")*100,2),
+          outcloseness = base::round(igraph::closeness(layout_basis, mode = "out")*100,2),
+          betweenness = base::round(igraph::betweenness(layout_basis),2),
+          authority = base::round(igraph::authority_score(layout_basis)$vector*100,0),
+          hub = base::round(igraph::hub_score(layout_basis)$vector*100,0),
+          strength = igraph::strength(layout_basis),
+          constraint = base::round(igraph::constraint(layout_basis)*100,0),
+          harmonic = base::round(igraph::harmonic_centrality(layout_basis)*10,0),
+          eigen = base::round(igraph::eigen_centrality(layout_basis)$vector*100,0),
+          power = base::round(igraph::power_centrality(layout_basis)*100,0),
+          negpower = base::round(igraph::power_centrality(layout_basis, exponent = -1)*100,0),
+        )
+        activity_graph$nodes_df <- activity_graph$nodes_df |>
+          dplyr::left_join(activity_centrality, by = "activity")
+        
+        shiny::incProgress(1/10)
+      })
       
       activity_graph
     })
     
     output$activitymap <- shiny::renderUI({
       shiny::req(!base::is.null(activity_graph()))
-      activity_graph <- activity_graph()
-      if ("switchxy" %in% input$activityaxes){
-        xaxis <- activity_graph$nodes_df$y
-        yaxis <- activity_graph$nodes_df$x
-      } else {
-        xaxis <- activity_graph$nodes_df$x
-        yaxis <- activity_graph$nodes_df$y
-      }
-      if ("invertx" %in% input$activityaxes){
-        xaxis <- -xaxis
-      }
-      if ("inverty" %in% input$activityaxes){
-        yaxis <- -yaxis
-      }
-      activity_graph$nodes_df$x <- xaxis
-      activity_graph$nodes_df$y <- yaxis
-      DiagrammeR::render_graph(
-        activity_graph,
-        width = "1600px",
-        height = "800px",
-        as_svg = TRUE
-      )
+      shiny::withProgress(message = "Creating a visualization of the activity map", {
+        
+        shiny::incProgress(1/5)
+        
+        activity_graph <- activity_graph()
+        if ("switchxy" %in% input$activityaxes){
+          xaxis <- activity_graph$nodes_df$y
+          yaxis <- activity_graph$nodes_df$x
+        } else {
+          xaxis <- activity_graph$nodes_df$x
+          yaxis <- activity_graph$nodes_df$y
+        }
+        
+        shiny::incProgress(1/5)
+        
+        if ("invertx" %in% input$activityaxes){
+          xaxis <- -xaxis
+        }
+        if ("inverty" %in% input$activityaxes){
+          yaxis <- -yaxis
+        }
+        shiny::incProgress(1/5)
+        
+        activity_graph$nodes_df$x <- xaxis
+        activity_graph$nodes_df$y <- yaxis
+        
+        shiny::incProgress(1/5)
+        graph <- DiagrammeR::render_graph(
+          activity_graph,
+          width = "1600px",
+          height = "800px",
+          as_svg = TRUE
+        )
+        shiny::incProgress(1/5)
+      })
+      
+      graph
     })
     
     output$activitytable <- DT::renderDataTable({
@@ -1460,7 +1852,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             )
           )
         ),
-        shiny::textAreaInput(ns("newactdesc"), "Description:", value = NA, width = "100%"),
+        shiny::textAreaInput(ns("newactdesc"), "Description:", value = "", width = "100%"),
         shiny::fluidRow(
           shiny::column(
             9,
@@ -1640,31 +2032,34 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         ) |>
           dplyr::mutate_all(base::as.character)
         
-        neworig <- tibble::tibble(
-          origin = input$newactorig,
-          destination = input$newactid,
-          condition = "None"
-        ) |>
-          stats::na.omit() |>
-          dplyr::mutate_all(base::as.character)
-        
-        newdest <- tibble::tibble(
-          origin = input$newactid,
-          destination = input$newactdest,
-          condition = "None"
-        ) |>
-          stats::na.omit() |>
-          dplyr::mutate_all(base::as.character)
-        
         reactval$activities <- reactval$activities |>
           dplyr::bind_rows(newactivities)
         reactval$actlabels <- reactval$actlabels |>
           dplyr::bind_rows(newactlabels)
         reactval$actattributes <- reactval$actattributes |>
           dplyr::bind_rows(newactattributes)
+        
+        newpaths <- dplyr::bind_rows(
+          tibble::tibble(
+            origin = input$newactorig,
+            destination = input$newactid,
+            condition = "None"
+          ),
+          tibble::tibble(
+            origin = input$newactid,
+            destination = input$newactdest,
+            condition = "None"
+          )
+        ) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character) |>
+          dplyr::filter(
+            origin %in% reactval$activities$activity,
+            destination %in% reactval$activities$activity
+          )
+        
         reactval$paths <- reactval$paths |>
-          dplyr::bind_rows(neworig) |>
-          dplyr::bind_rows(newdest)
+          dplyr::bind_rows(newpaths)
         
         shinyalert::shinyalert(
           title = "New activity added",
@@ -1673,6 +2068,245 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         )
       }
     })
+    
+    shiny::observeEvent(input$splitactivity, {
+      shiny::req(!base::is.null(activity_labels()))
+      
+      activities <- activity_labels()$activity
+      base::names(activities) <- activity_labels()$label
+      
+      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Split an activity",
+        shiny::selectInput(
+          ns("frominitact"), "Activity to split:",
+          choices = activities,
+          selected = NULL,
+          multiple = FALSE, width = "100%"
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            5,
+            shiny::textInput(ns("tooriginactid"), "Into origin:", value = "", width = "100%"),
+            shiny::textInput(ns("tooriginactlab"), "With the label:", value = "", width = "100%"),
+            shiny::selectInput(
+              ns("toorigtype"), "Type:",
+              choices = types, selected = types[1],
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              ns("condsplit"), "With condition:",
+              choices = c("None","Done","OK","Not OK"),
+              selected = "None",
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            5,
+            shiny::textInput(ns("todestactid"), "Into destination:", value = "", width = "100%"),
+            shiny::textInput(ns("todestactlab"), "With the label:", value = "", width = "100%"),
+            shiny::selectInput(
+              ns("todesttype"), "And the ype:",
+              choices = types, selected = types[1],
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("splitact"), "OK")
+        )
+      ))
+    })
+    
+    shiny::observeEvent(input$splitact, {
+      
+      if (input$tooriginactid == "" | input$tooriginactlab == "" |
+          input$todestactid == "" | input$todestactlab == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID or labels!",
+          text = "You must IDS and labels to all activities.",
+          type = "error"
+        )
+      } else if (input$tooriginactid %in% reactval$activities$activity |
+                 input$todestactid %in% reactval$activities$activity) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "At least one of the ID you gave to the activities is already assigned to another activity.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        shiny::req(!base::is.null(activity_labels()))
+        selectedact <- activity_labels() |>
+          dplyr::filter(activity == input$frominitact) |>
+          dplyr::group_by(
+            activity, order, type, resource,
+            requirement, weigth,
+            time_space, level, social,
+            duration, start, end
+          ) |>
+          dplyr::summarise(outcomes = base::paste(outcome, collapse = " "))
+        
+        newactivities <- tibble::tibble(
+          activity = c(input$tooriginactid, input$todestactid),
+          order = selectedact$order[1],
+          type = c(input$toorigtype, input$todesttype)
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        neworiglabels <- tibble::tibble(
+          activity = input$tooriginactid,
+          language = base::unique(course_data()$languages$langiso),
+          label = input$tooriginactlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newdestlabels <- tibble::tibble(
+          activity = input$todestactid,
+          language = base::unique(course_data()$languages$langiso),
+          label = input$todestactlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newactattributes <- tibble::tibble(
+          activity = c(input$tooriginactid, input$todestactid),
+          outcomes = selectedact$outcomes[1],
+          resource = selectedact$resource[1],
+          requirement = selectedact$requirement[1],
+          weigth = selectedact$weigth[1],
+          time_space = selectedact$time_space[1],
+          level = selectedact$level[1],
+          social = selectedact$social[1],
+          duration = selectedact$duration[1],
+          start = selectedact$start[1],
+          end = selectedact$end[1]
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$activities <- reactval$activities |>
+          dplyr::filter(activity != input$frominitact) |>
+          dplyr::bind_rows(newactivities)
+        reactval$actlabels <- reactval$actlabels |>
+          dplyr::filter(activity != input$frominitact) |>
+          dplyr::bind_rows(neworiglabels) |>
+          dplyr::bind_rows(newdestlabels)
+        reactval$actattributes <- reactval$actattributes |>
+          dplyr::filter(activity != input$frominitact) |>
+          dplyr::bind_rows(newactattributes)
+        
+        allbefore <- reactval$paths |>
+          dplyr::filter(destination == input$frominitact) |>
+          dplyr::mutate(destination = input$tooriginactid)
+        
+        allafter <- reactval$paths |>
+          dplyr::filter(origin == input$frominitact) |>
+          dplyr::mutate(origin = input$todestactid)
+        
+        newpaths <- tibble::tibble(
+          origin = input$tooriginactid,
+          destination = input$todestactid,
+          condition = input$condsplit
+        ) |>
+          dplyr::bind_rows(allbefore) |>
+          dplyr::bind_rows(allafter) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$paths <- reactval$paths |>
+          dplyr::filter(
+            origin != input$frominitact,
+            destination != input$frominitact
+          ) |>
+          dplyr::bind_rows(newpaths) |>
+          dplyr::mutate_all(base::as.character)
+        
+        shinyalert::shinyalert(
+          title = "Activity splitted",
+          text = "The activity has been successfully splitted in the database.",
+          type = "success"
+        )
+      }
+    })
+    
+    shiny::observeEvent(input$newpath, {
+      shiny::req(!base::is.null(activity_labels()))
+      
+      activities <- activity_labels()$activity
+      base::names(activities) <- activity_labels()$label
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add or edit a path",
+        shiny::fluidRow(
+          shiny::column(
+            5,
+            shiny::selectInput(
+              ns("newpathorig"), "Origin:",
+              choices = activities,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            5,
+            shiny::selectInput(
+              ns("newpathdest"), "Destination:",
+              choices = activities,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              ns("newpathcond"), "Condition:",
+              choices = c("None","Done","OK","Not OK"),
+              selected = "None",
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addpath"), "OK")
+        )
+      ))
+    })
+    
+    shiny::observeEvent(input$addpath, {
+      shiny::removeModal()
+      
+      newpath <- tibble::tibble(
+        origin = input$newpathorig,
+        destination = input$newpathdest,
+        condition = input$newpathcond
+      )
+      
+      paths <- reactval$paths |>
+        dplyr::anti_join(newpath, by = c("origin","destination")) |>
+        dplyr::bind_rows(newpath)
+      
+      reactval$paths <- paths
+      
+      shinyalert::shinyalert(
+        title = "Path added or edited",
+        text = "The path has been added or changed in the database.",
+        type = "success"
+      )
+    })
+    
+    
     
     # ANALYSES OF DESIGN #######################################################
     
@@ -1929,7 +2563,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         ggplot2::theme_minimal() +
         ggplot2::theme(
           text = ggplot2::element_text(size = 12),
-          axis.text.x = ggplot2::element_text(angle = 60, vjust = 0.5, hjust=0.5)
+          axis.text.x = ggplot2::element_text(angle = 60, vjust = 0.5, hjust=0.5),
+          panel.grid.major = ggplot2::element_line(colour = "black", linewidth = 0.5, linetype = 1, lineend = "butt")
         )
     }, height = 700)
     
@@ -2273,25 +2908,33 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::arrange(order) |>
         dplyr::select(-order)
       
-      writexl::write_xlsx(
-        base::list(
-          outcomes = reactval$outcomes,
-          connections = reactval$connections,
-          outlabels = reactval$outlabels,
-          activities = reactval$activities,
-          paths = reactval$paths,
-          actlabels = reactval$actlabels,
-          actattributes = actattributes,
-          attributes = reactval$attributes,
-          students = reactval$students,
-          interactions = reactval$interactions
-        ),
-        path = pathfile()
+      learning_journey <- base::list(
+        outcomes = reactval$outcomes,
+        connections = reactval$connections,
+        outlabels = reactval$outlabels,
+        activities = reactval$activities,
+        paths = reactval$paths,
+        actlabels = reactval$actlabels,
+        actattributes = actattributes,
+        attributes = reactval$attributes,
+        students = reactval$students,
+        interactions = reactval$interactions
       )
-      shinyalert::shinyalert(
-        "Saved!", "Your learning map and paths have been saved on disk.",
-        type = "success"
-      )
+      
+      quietly_write <- purrr::safely(writexl::write_xlsx)
+      check <- quietly_write(learning_journey, path = pathfile())
+      
+      if (!base::is.null(check$error)){
+        shinyalert::shinyalert(
+          "Not saved!", "The map could not been saved because the file is open in another application.",
+          type = "error"
+        )
+      } else {
+        shinyalert::shinyalert(
+          "Saved!", "Your learning map and paths have been saved on disk.",
+          type = "success"
+        )
+      }
     })
     
     shiny::observeEvent(input$openpaths, {
