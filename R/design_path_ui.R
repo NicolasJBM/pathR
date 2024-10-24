@@ -104,13 +104,13 @@ design_path_ui <- function(id){
             ),
             justified = TRUE, width = "100%"
           )),
-          shiny::column(5, shiny::uiOutput(ns("egooutcomeselection"))),
+          shiny::column(4, shiny::uiOutput(ns("egooutcomeselection"))),
           shiny::column(1, shiny::actionButton(ns("newoutcome"), "New outcome", icon = shiny::icon("circle-dot"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#000099;")),
           shiny::column(1, shiny::actionButton(ns("splitoutcome"), "Split outcome", icon = shiny::icon("scissors"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#003366;")),
-          shiny::column(1, shiny::actionButton(ns("newconnection"), "New link", icon = shiny::icon("arrow-right"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#006633;"))
+          shiny::column(1, shiny::actionButton(ns("newconnection"), "New link", icon = shiny::icon("arrow-right"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#006633;")),
+          shiny::column(1, shiny::actionButton(ns("refreshoutmap"), "Refresh map", icon = shiny::icon("rotate"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#660099;"))
         ),
         shiny::uiOutput(ns("outcomemap")),
-        DT::dataTableOutput(ns("outcometable")),
         shiny::fluidRow(
           shinydashboardPlus::box(
             title = "Edit outcomes",
@@ -138,7 +138,8 @@ design_path_ui <- function(id){
             shiny::actionButton(ns("updateconnections"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
             rhandsontable::rHandsontableOutput(ns("editconnections"))
           )
-        )
+        ),
+        DT::dataTableOutput(ns("outcometable"))
       ),
       shiny::tabPanel(
         title = shiny::span(
@@ -172,10 +173,11 @@ design_path_ui <- function(id){
             ),
             justified = TRUE
           )),
-          shiny::column(5, shiny::uiOutput(ns("egoactivityselection"))),
+          shiny::column(4, shiny::uiOutput(ns("egoactivityselection"))),
           shiny::column(1, shiny::actionButton(ns("newactivity"), "New activity", icon = shiny::icon("list-check"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#000099;")),
           shiny::column(1, shiny::actionButton(ns("splitactivity"), "Split activity", icon = shiny::icon("scissors"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#003366;")),
-          shiny::column(1, shiny::actionButton(ns("newpath"), "New path", icon = shiny::icon("arrow-right"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#006633;"))
+          shiny::column(1, shiny::actionButton(ns("newpath"), "New path", icon = shiny::icon("arrow-right"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#006633;")),
+          shiny::column(1, shiny::actionButton(ns("refreshactmap"), "Refresh map", icon = shiny::icon("rotate"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#660099;"))
         ),
         shiny::uiOutput(ns("activitymap")),
         shiny::fluidRow(

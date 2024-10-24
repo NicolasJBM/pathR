@@ -31,6 +31,7 @@
 #' @importFrom dplyr select
 #' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
+#' @importFrom dplyr rename
 #' @importFrom editR selection_server
 #' @importFrom forcats fct_reorder
 #' @importFrom forcats fct_rev
@@ -90,6 +91,7 @@
 #' @importFrom shiny observe
 #' @importFrom shiny observeEvent
 #' @importFrom shiny reactive
+#' @importFrom shiny eventReactive
 #' @importFrom shiny reactiveValues
 #' @importFrom shiny renderPlot
 #' @importFrom shiny renderUI
@@ -214,6 +216,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     power <- NULL
     shapesize <- NULL
     resource <- NULL
+    findbidir <- NULL
     
     
     
@@ -463,7 +466,10 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::count() |>
         dplyr::filter(n > 1)
       
-      if (base::nrow(checkids) == 0){
+      misslabels <- updated_outcomes |>
+        dplyr::filter(base::is.na(label) | label == "")
+      
+      if (base::nrow(checkids) == 0 & base::nrow(misslabels) == 0){
         
         updated_outlabels <- updated_outcomes |>
           dplyr::mutate(language = input$slctlang) |>
@@ -507,10 +513,16 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         reactval$connections <- connections
         reactval$actattributes <- actattributes
         
-      } else {
+      } else if (base::nrow(checkids) > 0) {
         shinyalert::shinyalert(
           "Duplicated IDs",
           base::paste0("The ID(s) ", base::paste(checkids$outcome, collapse = ", "), " is/are duplicated. They should be unique."),
+          type = "error"
+        )
+      } else if (base::nrow(misslabels) > 0) {
+        shinyalert::shinyalert(
+          "Missing labels",
+          base::paste0("The ID(s) ", base::paste(misslabels$outcome, collapse = ", "), " have no label. Please make a unique one."),
           type = "error"
         )
       }
@@ -569,7 +581,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
-    outcome_graph <- shiny::reactive({
+    outcome_graph <- shiny::eventReactive(input$refreshoutmap, {
       shiny::req(base::nrow(reactval$outlabels) > 1)
       shiny::req(base::nrow(reactval$outcomes) > 1)
       shiny::req(base::nrow(reactval$connections) > 1)
@@ -734,7 +746,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         graph <- DiagrammeR::render_graph(
           outcome_graph,
           width = "1600px",
-          height = "800px",
+          height = "1000px",
           as_svg = TRUE
         )
         shiny::incProgress(1/3)
@@ -1055,6 +1067,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       
       connections <- reactval$connections |>
         dplyr::anti_join(newconnection, by = c("origin","destination")) |>
+        dplyr::anti_join(dplyr::rename(
+          newconnection, origin = destination,
+          destination = origin),
+          by = c("origin","destination")
+        ) |>
         dplyr::bind_rows(newconnection)
       
       reactval$connections <- connections
@@ -1150,7 +1167,10 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::count() |>
         dplyr::filter(n > 1)
       
-      if (base::nrow(checkids) == 0){
+      misslabel <- updated_activities |>
+        dplyr::filter(base::is.na(label) | label == "")
+      
+      if (base::nrow(checkids) == 0 & base::nrow(misslabel) == 0){
         
         updated_actlabels <- updated_activities |>
           dplyr::mutate(language = input$slctlang) |>
@@ -1207,13 +1227,20 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         reactval$actattributes <- actattributes
         reactval$paths <- paths
         
-      } else {
+      } else if (base::nrow(checkids) > 0) {
         shinyalert::shinyalert(
           "Duplicated IDs",
           base::paste0("The ID(s) ", base::paste(checkids$activity, collapse = ", "), " is/are duplicated. They should be unique."),
           type = "error"
         )
+      } else if (base::nrow(misslabel) > 0){
+        shinyalert::shinyalert(
+          "Missing label",
+          base::paste0("The ID(s) ", base::paste(misslabel$activity, collapse = ", "), " has (have) no label; please define a unique label."),
+          type = "error"
+        )
       }
+        
     })
     
     # Edit the attributes common to all languages.
@@ -1522,21 +1549,27 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(!base::is.null(activity_labels()))
       
       activities <- activity_labels() |>
-        dplyr::select(activity, label, color, outcome) |>
-        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
-      
-      if (!base::is.null(input$slctegooutcome)){
-        slctactivities <- activities |>
-          dplyr::filter(outcome %in% input$slctegooutcome) |>
-          dplyr::select(activity) |>
-          base::unlist()
-      } else slctactivities <- NULL
+        dplyr::select(activity, label, color, outcome, order) |>
+        dplyr::group_by(activity) |>
+        dplyr::slice_head(n = 1) |>
+        dplyr::ungroup() |>
+        dplyr::mutate(label = stringr::str_replace_all(label, "_", " ")) |>
+        dplyr::arrange(order)
       
       activitychoices <- activities$activity
       base::names(activitychoices) <- activities$label
       activitycolors <- base::paste0(
         "color: #FFFFFF; background: ", activities$color,";"
       )
+      
+      if (!base::is.null(input$slctegooutcome)){
+        slctactivities <- activities |>
+          dplyr::filter(outcome %in% input$slctegooutcome) |>
+          dplyr::arrange(order) |>
+          dplyr::select(activity) |>
+          base::unlist()
+      } else slctactivities <- NULL
+      
       shinyWidgets::pickerInput(
         inputId = ns("slctegoactivity"),
         label = "Focus on activities:", 
@@ -1548,7 +1581,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
-    activity_graph <- shiny::reactive({
+    activity_graph <- shiny::eventReactive(input$refreshactmap, {
       shiny::req(!base::is.null(activity_labels()))
       
       shiny::withProgress(message = "Building the network of activities...", {
@@ -1557,6 +1590,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         activity_graph <- DiagrammeR::create_graph()
         
         nodes <- activity_labels() |>
+          dplyr::group_by(activity) |>
+          dplyr::slice_head(n = 1) |>
           tidyr::replace_na(base::list(description = " ")) |>
           dplyr::mutate(weigth = base::as.numeric(weigth)) |>
           dplyr::mutate(
@@ -1781,7 +1816,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         graph <- DiagrammeR::render_graph(
           activity_graph,
           width = "1600px",
-          height = "800px",
+          height = "1000px",
           as_svg = TRUE
         )
         shiny::incProgress(1/5)
@@ -2295,6 +2330,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       
       paths <- reactval$paths |>
         dplyr::anti_join(newpath, by = c("origin","destination")) |>
+        dplyr::anti_join(dplyr::rename(
+          newpath, origin = destination,
+          destination = origin),
+          by = c("origin","destination")
+        ) |>
         dplyr::bind_rows(newpath)
       
       reactval$paths <- paths
@@ -2562,11 +2602,11 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         ggplot2::scale_fill_gradient(low="white", high="forestgreen") +
         ggplot2::theme_minimal() +
         ggplot2::theme(
-          text = ggplot2::element_text(size = 12),
+          text = ggplot2::element_text(size = 14),
           axis.text.x = ggplot2::element_text(angle = 60, vjust = 0.5, hjust=0.5),
           panel.grid.major = ggplot2::element_line(colour = "black", linewidth = 0.5, linetype = 1, lineend = "butt")
         )
-    }, height = 700)
+    }, height = 1000)
     
     
     
@@ -2742,36 +2782,70 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(!base::is.null(input$temprange))
       shiny::req(!base::is.null(input$logslctstat))
       
-      removebelow <- base::match(input$temprange[1], base::levels(filteredlogs()$period))
-      removeabove <- base::match(input$temprange[2], base::levels(filteredlogs()$period))
-      
-      sizes <- filteredlogs() |>
-        dplyr::mutate(period = base::as.integer(period)) |>
-        dplyr::filter(period >= removebelow, period <= removeabove) |>
-        dplyr::mutate(units = 1) |>
-        dplyr::group_by(activity) |>
-        dplyr::summarise(units = base::sum(units)) |>
-        dplyr::ungroup() |>
-        dplyr::mutate(deciles = base::round(dplyr::percent_rank(units)*10,0)) |>
-        dplyr::mutate(deviations = base::as.numeric(base::scale(units))) |>
-        dplyr::mutate_if(base::is.numeric, function(x){
-          0.1 + (x - base::min(x)) / (base::max(x) - base::min(x))
-        }) |>
-        dplyr::select(activity, width = dplyr::all_of(input$logslctstat)) |>
-        dplyr::mutate(height = width, fontsize = 12 * width)
-      
       activity_graph <- activity_graph()
-      activity_graph$nodes_df <- activity_graph$nodes_df |>
-        dplyr::select(-width, -height, -fontsize) |>
-        dplyr::left_join(sizes, by = "activity") |>
-        tidyr::replace_na(base::list(width = 0.1, height = 0.1, fontsize = 1))
       
-      DiagrammeR::render_graph(
-        activity_graph,
-        width = "1600px",
-        height = "800px",
-        as_svg = TRUE
-      )
+      shiny::withProgress(message = "Creating a visualization of the activity map", {
+        
+        shiny::incProgress(1/6)
+        
+        removebelow <- base::match(input$temprange[1], base::levels(filteredlogs()$period))
+        removeabove <- base::match(input$temprange[2], base::levels(filteredlogs()$period))
+        
+        sizes <- filteredlogs() |>
+          dplyr::mutate(period = base::as.integer(period)) |>
+          dplyr::filter(period >= removebelow, period <= removeabove) |>
+          dplyr::mutate(units = 1) |>
+          dplyr::group_by(activity) |>
+          dplyr::summarise(units = base::sum(units)) |>
+          dplyr::ungroup() |>
+          dplyr::mutate(deciles = base::round(dplyr::percent_rank(units)*10,0)) |>
+          dplyr::mutate(deviations = base::as.numeric(base::scale(units))) |>
+          dplyr::mutate_if(base::is.numeric, function(x){
+            0.1 + (x - base::min(x)) / (base::max(x) - base::min(x))
+          }) |>
+          dplyr::select(activity, width = dplyr::all_of(input$logslctstat)) |>
+          dplyr::mutate(height = width, fontsize = 12 * width)
+        
+        shiny::incProgress(1/6)
+        
+        activity_graph <- activity_graph()
+        if ("switchxy" %in% input$activityaxes){
+          xaxis <- activity_graph$nodes_df$y
+          yaxis <- activity_graph$nodes_df$x
+        } else {
+          xaxis <- activity_graph$nodes_df$x
+          yaxis <- activity_graph$nodes_df$y
+        }
+        
+        shiny::incProgress(1/6)
+        
+        if ("invertx" %in% input$activityaxes){
+          xaxis <- -xaxis
+        }
+        if ("inverty" %in% input$activityaxes){
+          yaxis <- -yaxis
+        }
+        shiny::incProgress(1/6)
+        
+        activity_graph$nodes_df$x <- xaxis
+        activity_graph$nodes_df$y <- yaxis
+        
+        activity_graph$nodes_df <- activity_graph$nodes_df |>
+          dplyr::select(-width, -height, -fontsize) |>
+          dplyr::left_join(sizes, by = "activity") |>
+          tidyr::replace_na(base::list(width = 0.1, height = 0.1, fontsize = 1))
+        
+        shiny::incProgress(1/6)
+        graph <- DiagrammeR::render_graph(
+          activity_graph,
+          width = "1600px",
+          height = "1000px",
+          as_svg = TRUE
+        )
+        shiny::incProgress(1/6)
+      })
+      
+      graph
     })
     
     output$learning_profiles <- shiny::renderPlot({
@@ -2899,22 +2973,79 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       shiny::req(base::length(course_paths()) == 2)
       shiny::req(base::length(tree()) == 4)
       
-      actattributes <- reactval$actattributes |>
-        dplyr::left_join(
-          dplyr::select(reactval$activities, activity, order),
-          by = "activity"
-        ) |>
+      outcomes <- reactval$outcomes |>
         dplyr::mutate(order = base::as.numeric(order)) |>
-        dplyr::arrange(order) |>
-        dplyr::select(-order)
+        dplyr::arrange(order)
+      outcomelevels <- outcomes$outcome
+      connections <- reactval$connections |>
+        dplyr::mutate(
+          origin = base::factor(origin, levels = outcomelevels),
+          destination = base::factor(destination, levels = outcomelevels)
+        ) |>
+        dplyr::arrange(origin, destination) |>
+        dplyr::mutate(
+          origin = base::as.character(origin),
+          destination = base::as.character(destination)
+        )
+      
+      if (base::nrow(connections) > 0){
+        connections <- connections |>
+          dplyr::mutate(findbidir = purrr::map2_chr(origin, destination, function(x,y){
+            base::paste0(base::sort(c(x,y)), collapse = "_")
+          })) |>
+          dplyr::group_by(findbidir) |>
+          dplyr::sample_n(1) |>
+          dplyr::ungroup() |>
+          dplyr::select(-findbidir)
+      }
+      
+      outlabels <- reactval$outlabels |>
+        dplyr::mutate(outcome = base::factor(outcome, levels = outcomelevels)) |>
+        dplyr::arrange(language, outcome) |>
+        dplyr::mutate(outcome = base::as.character(outcome))
+      
+      activities <- reactval$activities |>
+        dplyr::mutate(order = base::as.numeric(order)) |>
+        dplyr::arrange(order)
+      activitylevels <- activities$activity
+      paths <- reactval$paths |>
+        dplyr::mutate(
+          origin = base::factor(origin, levels = activitylevels),
+          destination = base::factor(destination, levels = activitylevels)
+        ) |>
+        dplyr::arrange(origin, destination) |>
+        dplyr::mutate(
+          origin = base::as.character(origin),
+          destination = base::as.character(destination)
+        )
+      
+      if (base::nrow(paths) > 0){
+        paths <- paths |>
+          dplyr::mutate(findbidir = purrr::map2_chr(origin, destination, function(x,y){
+            base::paste0(base::sort(c(x,y)), collapse = "_")
+          })) |>
+          dplyr::group_by(findbidir) |>
+          dplyr::sample_n(1) |>
+          dplyr::ungroup() |>
+          dplyr::select(-findbidir)
+      }
+      
+      actlabels <- reactval$actlabels |>
+        dplyr::mutate(activity = base::factor(activity, levels = activitylevels)) |>
+        dplyr::arrange(language, activity) |>
+        dplyr::mutate(activity = base::as.character(activity))
+      actattributes <- reactval$actattributes |>
+        dplyr::mutate(activity = base::factor(activity, levels = activitylevels)) |>
+        dplyr::arrange(activity) |>
+        dplyr::mutate(activity = base::as.character(activity))
       
       learning_journey <- base::list(
-        outcomes = reactval$outcomes,
-        connections = reactval$connections,
-        outlabels = reactval$outlabels,
-        activities = reactval$activities,
-        paths = reactval$paths,
-        actlabels = reactval$actlabels,
+        outcomes = outcomes,
+        connections = connections,
+        outlabels = outlabels,
+        activities = activities,
+        paths = paths,
+        actlabels = actlabels,
         actattributes = actattributes,
         attributes = reactval$attributes,
         students = reactval$students,
