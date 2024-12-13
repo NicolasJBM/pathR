@@ -17,7 +17,6 @@ RoxygenNote: 7.3.2
 Imports:
     shiny,
     shinydashboard,
-    shinydashboardPlus,
     shinyWidgets,
     dplyr,
     readxl,
@@ -30,7 +29,6 @@ Imports:
     tidyr,
     writexl,
     purrr,
-    editR,
     ggplot2,
     forcats,
     lubridate,

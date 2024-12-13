@@ -5,11 +5,13 @@
 #' @param id Character. ID of the module to connect the user interface to the appropriate server side.
 #' @return Save the new or modified document in the original documents folder.
 #' @importFrom DT dataTableOutput
-#' @importFrom editR selection_ui
 #' @importFrom rhandsontable rHandsontableOutput
+#' @importFrom shiny HTML
 #' @importFrom shiny NS
 #' @importFrom shiny actionButton
 #' @importFrom shiny column
+#' @importFrom shiny downloadButton
+#' @importFrom shiny fileInput
 #' @importFrom shiny fluidPage
 #' @importFrom shiny fluidRow
 #' @importFrom shiny icon
@@ -19,9 +21,10 @@
 #' @importFrom shiny span
 #' @importFrom shiny tabPanel
 #' @importFrom shiny uiOutput
+#' @importFrom shinyWidgets animateOptions
 #' @importFrom shinyWidgets checkboxGroupButtons
+#' @importFrom shinyWidgets dropdown
 #' @importFrom shinydashboard tabBox
-#' @importFrom shinydashboardPlus box
 #' @export
 
 
