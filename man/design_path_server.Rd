@@ -4,16 +4,12 @@
 \alias{design_path_server}
 \title{Design learning paths}
 \usage{
-design_path_server(id, filtered, tree, course_data, course_paths)
+design_path_server(id, tree = NULL, course_paths = NULL)
 }
 \arguments{
 \item{id}{Character. ID of the module to connect the user interface to the appropriate server side.}
 
-\item{filtered}{Reactive. List of pre-selected documents.}
-
 \item{tree}{Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR}
-
-\item{course_data}{Reactive. Function containing all the course data loaded with the course.}
 
 \item{course_paths}{Reactive. Function containing a list of paths to the different folders and databases on local disk.}
 }

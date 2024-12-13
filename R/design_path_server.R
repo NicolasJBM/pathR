@@ -3,8 +3,6 @@
 #' @author Nicolas Mangin
 #' @description Module facilitating the design and visualization or a complete learning experience.
 #' @param id Character. ID of the module to connect the user interface to the appropriate server side.
-#' @param filtered Reactive. List of pre-selected documents.
-#' @param course_data Reactive. Function containing all the course data loaded with the course.
 #' @param tree Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR
 #' @param course_paths Reactive. Function containing a list of paths to the different folders and databases on local disk.
 #' @return Save the new or modified page in the folder "2_documents/main_language/".
@@ -32,7 +30,6 @@
 #' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
 #' @importFrom dplyr rename
-#' @importFrom editR selection_server
 #' @importFrom forcats fct_reorder
 #' @importFrom forcats fct_rev
 #' @importFrom ggplot2 aes
@@ -123,7 +120,8 @@
 #' @export
 
 
-design_path_server <- function(id, filtered, tree, course_data, course_paths){
+
+design_path_server <- function(id, tree = NULL, course_paths = NULL){
   ns <- shiny::NS(id)
   shiny::moduleServer(id, function(input, output, session) {
     
@@ -215,31 +213,196 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     outdegree <- NULL
     power <- NULL
     shapesize <- NULL
-    resource <- NULL
+    subgroup <- NULL
     findbidir <- NULL
+    preslctsubgroup <- NULL
+    
+    
     
     
     
     # DATA #####################################################################
-    # Load paths
+    
+    
     
     reactval <- shiny::reactiveValues()
     
     pathfile <- shiny::reactive({
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
       input$loadpath
-      base::paste0(
-        course_paths()$subfolders$paths, "/",
-        stringr::str_replace(tree()$course$tree[[1]], "RData$", "xlsx")
-      )
+      if (base::is.null(course_paths)){
+        "www/coursemap.xlsx"
+      } else if (base::length(course_paths()) == 2) {
+        shiny::req(base::length(tree()) == 4)
+        base::paste0(
+          course_paths()$subfolders$paths, "/",
+          stringr::str_replace(tree()$course$tree[[1]], "RData$", "xlsx")
+        )
+      } else {
+        NA
+      }
     })
     
+    
+    
+    shiny::observe({
+      shiny::req(!base::is.na(pathfile()))
+      
+      if (!base::is.null(input$uploadpath)) {
+        
+        pathfile <- input$uploadpath$datapath
+        
+      } else {
+        
+        pathfile <- pathfile()
+        
+        if (!base::file.exists(pathfile)){
+          
+          reactval$outcomes <- tibble::tibble(
+            outcome = base::as.character(NA),
+            order = base::as.character(NA),
+            type = base::as.character(NA),
+            color = base::as.character(NA)
+          )
+          
+          reactval$connections <- tibble::tibble(
+            origin = base::as.character(NA),
+            destination = base::as.character(NA)
+          )
+          
+          reactval$outlabels <- tibble::tibble(
+            outcome = base::as.character(NA),
+            language = base::as.character(NA),
+            label = base::as.character(NA),
+            description = base::as.character(NA),
+            lmsid = base::as.character(NA),
+            URL = base::as.character(NA)
+          )
+          
+          reactval$activities <- tibble::tibble(
+            activity = base::as.character(NA),
+            order = base::as.character(NA),
+            type = base::as.character(NA),
+            outcomes = base::as.character(NA),
+            subgroup = base::as.character(NA),
+            requirement = base::as.character(NA),
+            weigth = base::as.character(NA),
+            level = base::as.character(NA),
+            time_space = base::as.character(NA),
+            social = base::as.character(NA),
+            duration = base::as.character(NA),
+            start = base::as.character(NA),
+            end = base::as.character(NA)
+          )
+          
+          reactval$actlabels <- tibble::tibble(
+            activity = base::as.character(NA),
+            language = base::as.character(NA),
+            label = base::as.character(NA),
+            description = base::as.character(NA),
+            lmsid = base::as.character(NA),
+            URL = base::as.character(NA)
+          )
+          
+          reactval$attributes <- tibble::tribble(
+            ~"attribute", ~"value", ~"language", ~"label", ~"icon",
+            "level", "NOV", "US", "Novice", "child-reaching",
+            "level", "APP", "US", "Apprentice", "user",
+            "level", "PRO", "US", "Professional", "user-tie",
+            "level", "MAS", "US", "Master", "user-ninja",
+            "level", "EXP", "US", "Expert", "user-doctor",
+            "social", "IND", "US", "Individual", "user",
+            "social", "TM", "US", "Team", "user-plus",
+            "social", "GP", "US", "Group", "people-group",
+            "time_space", "AOL", "US", "Asynchronous", "house-laptop",
+            "time_space", "SOL", "US", "Synchronous online", "house-signal",
+            "time_space", "SOS", "US", "Synchronous on site", "school",
+            "requirement", "OPT", "US", "Optional", "circle-question",
+            "requirement", "REC", "US", "Recommended", "circle-xmark",
+            "requirement", "NEC", "US", "Necessary", "circle-exclamation",
+            "level", "NOV", "FR", "Novice", "child-reaching",
+            "level", "APP", "FR", "Apprenti", "user",
+            "level", "PRO", "FR", "Professionnel", "user-tie",
+            "level", "MAS", "FR", "Maitre", "user-ninja",
+            "level", "EXP", "FR", "Expert", "user-doctor",
+            "social", "IND", "FR", "Individuel", "user",
+            "social", "TM", "FR", "Equipe", "user-plus",
+            "social", "GP", "FR", "Groupe", "people-group",
+            "time_space", "AOL", "FR", "Asynchrone", "house-laptop",
+            "time_space", "SOL", "FR", "Synchrone en ligne", "house-signal",
+            "time_space", "SOS", "FR", "Synchrone sur site", "school",
+            "requirement", "OPT", "FR", "Facultatif", "circle-question",
+            "requirement", "REC", "FR", "Recommande", "circle-xmark",
+            "requirement", "NEC", "FR", "Necessaire", "circle-exclamation"
+          )
+          
+          reactval$languages <- tibble::tribble(
+            ~langiso, ~language, ~flag,
+            "US","English","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/gb.svg",
+            "FR","French","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/fr.svg"
+          )
+          
+          reactval$students <- tibble::tibble(
+            userid = base::as.character(NA),
+            studentid = base::as.character(NA),
+            lastname = base::as.character(NA),
+            firstname = base::as.character(NA),
+            fullname = base::as.character(NA),
+            email = base::as.character(NA)
+          )
+          
+          reactval$interactions <- tibble::tibble(
+            log = base::as.character(NA),
+            date = base::as.Date(NA),
+            subject = base::as.character(NA),
+            action = base::as.character(NA),
+            object = base::as.character(NA),
+            context = base::as.character(NA)
+          )
+          
+          writexl::write_xlsx(
+            base::list(
+              outcomes = reactval$outcomes,
+              connections = reactval$connections,
+              outlabels = reactval$outlabels,
+              activities = reactval$activities,
+              actlabels = reactval$actlabels,
+              attributes = reactval$attributes,
+              languages = reactval$languages,
+              students = reactval$students,
+              interactions = reactval$interactions
+            ),
+            path = pathfile
+          )
+        }
+        
+        
+      }
+      
+      reactval$outcomes <- readxl::read_excel(pathfile, sheet = "outcomes", col_types = "text")
+      reactval$connections <- readxl::read_excel(pathfile, sheet = "connections", col_types = "text")
+      reactval$outlabels <- readxl::read_excel(pathfile, sheet = "outlabels", col_types = "text")
+      reactval$activities <- readxl::read_excel(pathfile, sheet = "activities", col_types = "text")
+      reactval$actlabels <- readxl::read_excel(pathfile, sheet = "actlabels", col_types = "text")
+      reactval$attributes <- readxl::read_excel(pathfile, sheet = "attributes", col_types = "text")
+      reactval$languages <- readxl::read_excel(pathfile, sheet = "languages", col_types = "text")
+      reactval$students <- readxl::read_excel(pathfile, sheet = "students", col_types = "text")
+      reactval$interactions <- readxl::read_excel(pathfile, sheet = "interactions", col_types = c("text","date","text","text","text","text"))
+      
+      if (base::nrow(reactval$outcomes) > 1) {
+        shinyalert::shinyalert(
+          "Map loaded",
+          "The map and data about the learning experiences have been loaded.",
+          type = "success"
+        )
+      }
+    })
+    
+    
+    
     output$slctlanguage <- shiny::renderUI({
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
       input$reloadpath
-      languages <- course_data()$languages |>
+      shiny::req(!base::is.null(reactval$languages))
+      languages <- reactval$languages |>
         dplyr::select(langiso, language, flag)
       shinyWidgets::radioGroupButtons(
         inputId = ns("slctlang"), label = NULL,
@@ -257,143 +420,18 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
-    shiny::observe({
-      shiny::req(!base::is.null(pathfile()))
-      if (!base::file.exists(pathfile())){
-        reactval$outcomes <- tibble::tibble(
-          outcome = base::as.character(NA),
-          order = base::as.character(NA),
-          type = base::as.character(NA),
-          color = base::as.character(NA)
-        )
-        reactval$connections <- tibble::tibble(
-          origin = base::as.character(NA),
-          destination = base::as.character(NA)
-        )
-        reactval$outlabels <- tibble::tibble(
-          outcome = base::as.character(NA),
-          language = base::as.character(NA),
-          label = base::as.character(NA),
-          description = base::as.character(NA),
-          lmsid = base::as.character(NA),
-          URL = base::as.character(NA)
-        )
-        reactval$activities <- tibble::tibble(
-          activity = base::as.character(NA),
-          order = base::as.character(NA),
-          type = base::as.character(NA)
-        )
-        reactval$paths <- tibble::tibble(
-          origin = base::as.character(NA),
-          destination = base::as.character(NA),
-          condition = base::as.character(NA)
-        )
-        reactval$actlabels <- tibble::tibble(
-          activity = base::as.character(NA),
-          language = base::as.character(NA),
-          label = base::as.character(NA),
-          description = base::as.character(NA),
-          lmsid = base::as.character(NA),
-          URL = base::as.character(NA)
-        )
-        reactval$actattributes <- tibble::tibble(
-          activity = base::as.character(NA),
-          outcomes = base::as.character(NA),
-          resource = base::as.character(NA),
-          requirement = base::as.character(NA),
-          weigth = base::as.character(NA),
-          level = base::as.character(NA),
-          time_space = base::as.character(NA),
-          social = base::as.character(NA),
-          duration = base::as.character(NA),
-          start = base::as.character(NA),
-          end = base::as.character(NA)
-        )
-        reactval$attributes <- tibble::tribble(
-          ~"attribute", ~"value", ~"language", ~"label", ~"icon",
-          "level", "NOV", "US", "Novice", "child-reaching",
-          "level", "APP", "US", "Apprentice", "user",
-          "level", "PRO", "US", "Professional", "user-tie",
-          "level", "MAS", "US", "Master", "user-ninja",
-          "level", "EXP", "US", "Expert", "user-doctor",
-          "social", "IND", "US", "Individual", "user",
-          "social", "TM", "US", "Team", "user-plus",
-          "social", "GP", "US", "Group", "people-group",
-          "time_space", "AOL", "US", "Asynchronous", "house-laptop",
-          "time_space", "SOL", "US", "Synchronous online", "house-signal",
-          "time_space", "SOS", "US", "Synchronous on site", "school",
-          "requirement", "OPT", "US", "Optional", "circle-question",
-          "requirement", "REC", "US", "Recommended", "circle-xmark",
-          "requirement", "NEC", "US", "Necessary", "circle-exclamation",
-          "level", "NOV", "FR", "Novice", "child-reaching",
-          "level", "APP", "FR", "Apprenti", "user",
-          "level", "PRO", "FR", "Professionnel", "user-tie",
-          "level", "MAS", "FR", "Maitre", "user-ninja",
-          "level", "EXP", "FR", "Expert", "user-doctor",
-          "social", "IND", "FR", "Individuel", "user",
-          "social", "TM", "FR", "Equipe", "user-plus",
-          "social", "GP", "FR", "Groupe", "people-group",
-          "time_space", "AOL", "FR", "Asynchrone", "house-laptop",
-          "time_space", "SOL", "FR", "Synchrone en ligne", "house-signal",
-          "time_space", "SOS", "FR", "Synchrone sur site", "school",
-          "requirement", "OPT", "FR", "Facultatif", "circle-question",
-          "requirement", "REC", "FR", "Recommande", "circle-xmark",
-          "requirement", "NEC", "FR", "Necessaire", "circle-exclamation"
-        )
-        reactval$students <- tibble::tibble(
-          userid = base::as.character(NA),
-          studentid = base::as.character(NA),
-          lastname = base::as.character(NA),
-          firstname = base::as.character(NA),
-          fullname = base::as.character(NA),
-          email = base::as.character(NA)
-        )
-        reactval$interactions <- tibble::tibble(
-          log = base::as.character(NA),
-          date = base::as.Date(NA),
-          subject = base::as.character(NA),
-          action = base::as.character(NA),
-          object = base::as.character(NA),
-          context = base::as.character(NA)
-        )
-        
-        writexl::write_xlsx(
-          base::list(
-            outcomes = reactval$outcomes,
-            connections = reactval$connections,
-            outlabels = reactval$outlabels,
-            activities = reactval$activities,
-            paths = reactval$paths,
-            actlabels = reactval$actlabels,
-            actattributes = reactval$actattributes,
-            attributes = reactval$attributes,
-            students = reactval$students,
-            interactions = reactval$interactions
-          ),
-          path = pathfile()
-        )
-      }
-      
-      reactval$outcomes <- readxl::read_excel(pathfile(), sheet = "outcomes", col_types = "text")
-      reactval$connections <- readxl::read_excel(pathfile(), sheet = "connections", col_types = "text")
-      reactval$outlabels <- readxl::read_excel(pathfile(), sheet = "outlabels", col_types = "text")
-      reactval$activities <- readxl::read_excel(pathfile(), sheet = "activities", col_types = "text")
-      reactval$paths <- readxl::read_excel(pathfile(), sheet = "paths", col_types = "text")
-      reactval$actlabels <- readxl::read_excel(pathfile(), sheet = "actlabels", col_types = "text")
-      reactval$actattributes <- readxl::read_excel(pathfile(), sheet = "actattributes", col_types = "text")
-      reactval$attributes <- readxl::read_excel(pathfile(), sheet = "attributes", col_types = "text")
-      reactval$students <- readxl::read_excel(pathfile(), sheet = "students", col_types = "text")
-      reactval$interactions <- readxl::read_excel(pathfile(), sheet = "interactions", col_types = c("text","date","text","text","text","text"))
-    })
     
-    # OUTCOMES #################################################################
-    # Add, edit or remove learning outcomes and links between them
+    
+    
+    
+    # OUTCOME EDITION ##########################################################
+    
+    
     
     # Combine outcome information for a selected language
     outcomelist <- shiny::reactive({
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
       shiny::req(!base::is.null(input$slctlang))
+      shiny::req(!base::is.null(reactval$outcomes))
       shiny::req(!base::is.null(reactval$outlabels))
       labels <- reactval$outlabels |>
         dplyr::filter(language == input$slctlang) |>
@@ -408,58 +446,31 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::arrange(order)
     })
     
-    # Edit the outcome (feature that are either specific or common to all languages)
+    
+    
+    # Edit outcomes in a table
     output$editoutcomes <- rhandsontable::renderRHandsontable({
       shiny::req(outcomelist())
       outcomelist() |>
-        dplyr::add_row() |>
-        dplyr::mutate(newid = "") |>
         rhandsontable::rhandsontable(
           height = 500, width = "100%", rowHeaders = NULL, stretchH = "all"
         ) |>
         rhandsontable::hot_cols(
-          colWidths = c("10%","20%","30%","5%","10%","5%","5%","5%","10%")
+          colWidths = c("10%","20%","40%","5%","10%","5%","5%","5%")
         ) |>
+        rhandsontable::hot_col(1, readOnly = TRUE) |>
         rhandsontable::hot_context_menu(
-          allowRowEdit = TRUE, allowColEdit = FALSE
+          allowRowEdit = FALSE, allowColEdit = FALSE
         )
     })
     
+    
+    
     shiny::observeEvent(input$updateoutcomes, {
+      shiny::req(!base::is.null(input$editoutcomes))
       updated_outcomes <- rhandsontable::hot_to_r(input$editoutcomes) |>
         dplyr::mutate_all(base::as.character) |>
         dplyr::filter(!base::is.na(outcome), outcome != "")
-      
-      connections <- reactval$connections
-      actattributes <- reactval$actattributes
-      outlabels <- reactval$outlabels
-      
-      changed_ids <- updated_outcomes |>
-        dplyr::filter(newid != "") |>
-        dplyr::select(outcome, newid)
-      
-      for (i in base::seq_len(base::nrow(changed_ids))) {
-        fromid <- changed_ids$outcome[[i]]
-        toid <- changed_ids$newid[[i]]
-        updated_outcomes$outcome <- stringr::str_replace_all(
-          updated_outcomes$outcome, fromid, toid
-        )
-        connections$origin <- stringr::str_replace_all(
-          connections$origin, fromid, toid
-        )
-        connections$destination <- stringr::str_replace_all(
-          connections$destination, fromid, toid
-        )
-        outlabels$outcome <- stringr::str_replace_all(
-          outlabels$outcome, fromid, toid
-        )
-        actattributes$outcomes <- stringr::str_replace_all(
-          actattributes$outcomes, fromid, toid
-        )
-      }
-      
-      updated_outcomes <- updated_outcomes |>
-        dplyr::select(-newid)
       
       checkids <- updated_outcomes |>
         dplyr::group_by(outcome) |>
@@ -480,11 +491,13 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::select(-language, -label, -description, -lmsid, -URL) |>
           base::unique()
         
-        all_languages <- base::unique(course_data()$languages$langiso)
-        outlabels <- dplyr::select(updated_outcomes, outcome) |>
+        all_languages <- reactval$languages$langiso
+        
+        outlabels <- updated_outcomes |>
+          dplyr::select(outcome) |>
           dplyr::mutate(language = base::list(all_languages)) |>
           tidyr::unnest(language) |>
-          dplyr::left_join(outlabels, by = c("outcome", "language")) |>
+          dplyr::left_join(reactval$outlabels, by = c("outcome", "language")) |>
           dplyr::group_by(outcome) |>
           tidyr::nest() |>
           dplyr::mutate(data = purrr::map(data, function(x,y){
@@ -502,37 +515,68 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::bind_rows(updated_outlabels) |>
           base::unique()
         
-        connections <- connections |>
+        connections <- reactval$connections |>
           dplyr::filter(
             origin %in% updated_outcomes$outcome,
             destination %in% updated_outcomes$outcome
           )
         
+        activities <- reactval$activities
+        actoucomes <- activities$outcomes |>
+          stringr::str_split(" ", simplify = TRUE) |>
+          base::as.character() |>
+          base::unique()
+        actoucomes <- actoucomes[actoucomes != ""]
+        newoutcomes <- updated_outcomes$outcome
+        missing <- base::setdiff(actoucomes, newoutcomes)
+        if (base::length(missing > 0)){
+          missing <- missing |>
+            base::trimws() |>
+            base::paste(collapse = "|")
+          activities <- activities |>
+            dplyr::mutate(outcomes = stringr::str_remove_all(outcomes, missing))
+        }
+        
         reactval$outlabels <- outlabels
         reactval$outcomes <- updated_outcomes
         reactval$connections <- connections
-        reactval$actattributes <- actattributes
+        reactval$activities <- activities
+        
+        shinyalert::shinyalert(
+          "Outcomes updtated",
+          "Refresh the map to see the changes.",
+          type = "success"
+        )
         
       } else if (base::nrow(checkids) > 0) {
         shinyalert::shinyalert(
           "Duplicated IDs",
-          base::paste0("The ID(s) ", base::paste(checkids$outcome, collapse = ", "), " is/are duplicated. They should be unique."),
+          base::paste0(
+            "The ID(s) ",
+            base::paste(checkids$outcome, collapse = ", "),
+            " is/are duplicated. They should be unique."
+          ),
           type = "error"
         )
       } else if (base::nrow(misslabels) > 0) {
         shinyalert::shinyalert(
           "Missing labels",
-          base::paste0("The ID(s) ", base::paste(misslabels$outcome, collapse = ", "), " have no label. Please make a unique one."),
+          base::paste0(
+            "The ID(s) ",
+            base::paste(misslabels$outcome, collapse = ", "),
+            " have no label. Please make a unique one."
+          ),
           type = "error"
         )
       }
     })
     
-    # Create, modify or remove links between outcomes.
+    
+    
+    # Edit connections between outcomes in a table
     output$editconnections <- rhandsontable::renderRHandsontable({
       reactval$connections |>
         stats::na.omit() |>
-        dplyr::add_row() |>
         dplyr::mutate(
           origin = base::factor(origin, reactval$outcomes$outcome),
           destination = base::factor(destination, reactval$outcomes$outcome)
@@ -556,10 +600,633 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         base::unique() |>
         dplyr::filter(origin != destination)
       reactval$connections <- updated_connections
+      shinyalert::shinyalert(
+        "Connections updtated",
+        "Refresh the map to see the changes.",
+        type = "success"
+      )
     })
     
-    # Visualize the outcome map.
     
+    
+    # Button to add outcomes to the database
+    shiny::observeEvent(input$newoutcome, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      types <- c("GEN","SPE","PRE")
+      base::names(types) <- c("Generic Learning Outcome","Specific Learning Outcome","Prerequisite")
+      
+      outcomes <- outcomelist()$outcome
+      base::names(outcomes) <- stringr::str_replace_all(outcomelist()$label, "_", " ")
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add a new outcome",
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::textInput(ns("newoutid"), "ID:", value = "", width = "100%")
+          ),
+          shiny::column(
+            6,
+            shiny::textInput(ns("newoutlab"), "Label:", value = "Write a label here", width = "100%")
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              ns("newouttype"), "Type:",
+              choices = types, selected = types[1],
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            1,
+            shiny::textInput(ns("newoutorder"), "Order:", value = NA, width = "100%")
+          ),
+          shiny::column(
+            1,
+            shinyWidgets::colorPickr(ns("newoutcolor"), "Color:")
+          )
+        ),
+        
+        shiny::textAreaInput(ns("newoutdesc"), "Description:", value = "", width = "100%"),
+        
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::textAreaInput(ns("newoutlmsid"), "ID LMD:", value = "", width = "100%"),
+          ),
+          shiny::column(
+            6,
+            shiny::textAreaInput(ns("newouturl"), "URL address:", value = "", width = "100%"),
+          )
+        ),
+        
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newoutorig"), "Origins:",
+              choices = outcomes, selected = NULL,
+              multiple = TRUE, width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newoutdest"), "Destinations:",
+              choices = outcomes, selected = NULL,
+              multiple = TRUE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addoutcome"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$addoutcome, {
+      if (input$newoutid == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID!",
+          text = "You must give the outcome an ID.",
+          type = "error"
+        )
+      } else if (input$newoutid %in% reactval$outcomes$outcome) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "The ID you gave to the outcome is already assigned to another outcome.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        newoutcomes <- tibble::tibble(
+          outcome = input$newoutid,
+          order = input$newoutorder,
+          type = input$newouttype,
+          color = input$newoutcolor
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newoutlabels <- tibble::tibble(
+          outcome = input$newoutid,
+          language = base::unique(reactval$languages$langiso),
+          label = input$newoutlab,
+          description = input$newoutdesc,
+          lmsid = input$newoutlmsid,
+          URL = input$newouturl
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        reactval$outcomes <- reactval$outcomes |>
+          dplyr::bind_rows(newoutcomes)
+        reactval$outlabels <- reactval$outlabels |>
+          dplyr::bind_rows(newoutlabels)
+        
+        newconnections <- dplyr::bind_rows(
+          tibble::tibble(
+            origin = input$newoutorig,
+            destination = input$newoutid
+          ),
+          tibble::tibble(
+            origin = input$newoutid,
+            destination = input$newoutdest
+          )
+        ) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character) |>
+          dplyr::filter(
+            origin %in% reactval$outcomes$outcome,
+            destination %in% reactval$outcomes$outcome
+          )
+        
+        reactval$connections <- reactval$connections |>
+          dplyr::bind_rows(newconnections)
+        
+        shinyalert::shinyalert(
+          title = "New outcome added",
+          text = "The new outcome has been successfully added to the database.",
+          type = "success"
+        )
+      }
+    })
+    
+    
+    
+    # Button to create a new connection between outcomes
+    shiny::observeEvent(input$newconnection, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      outcomes <- c(outcomelist()$outcome)
+      base::names(outcomes) <- c(stringr::str_replace_all(outcomelist()$label, "_", " "))
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add or edit a connection",
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newconnectionorig"), "Origin:",
+              choices = outcomes,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("newconnectiondest"), "Destination:",
+              choices = outcomes,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addconnection"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$addconnection, {
+      shiny::removeModal()
+      
+      newconnection <- tibble::tibble(
+        origin = input$newconnectionorig,
+        destination = input$newconnectiondest
+      )
+      
+      connections <- reactval$connections |>
+        dplyr::anti_join(newconnection, by = c("origin","destination")) |>
+        dplyr::anti_join(dplyr::rename(
+          newconnection, origin = destination,
+          destination = origin),
+          by = c("origin","destination")
+        ) |>
+        dplyr::bind_rows(newconnection)
+      
+      reactval$connections <- connections
+      
+      shinyalert::shinyalert(
+        title = "Connection added or edited",
+        text = "The connection has been added or changed in the database.",
+        type = "success"
+      )
+    })
+    
+    
+    
+    # Button to split an outcome in two (one origin connected to antecedents and one destination connected to dependents)
+    shiny::observeEvent(input$splitoutcome, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      outcomes <- outcomelist()$outcome
+      base::names(outcomes) <- outcomelist()$label
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Split an outcome",
+        shiny::selectInput(
+          ns("frominitout"), "Outcome to split:",
+          choices = outcomes,
+          selected = NULL,
+          multiple = FALSE, width = "100%"
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            5,
+            shiny::textInput(ns("tooriginoutid"), "Into origin:", value = "", width = "100%"),
+            shiny::textInput(ns("tooriginoutlab"), "With the label:", value = "", width = "100%")
+          ),
+          shiny::column(
+            5,
+            shiny::textInput(ns("todestoutid"), "Into destination:", value = "", width = "100%"),
+            shiny::textInput(ns("todestoutlab"), "With the label:", value = "", width = "100%")
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("splitout"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$splitout, {
+      
+      if (input$tooriginoutid == "" | input$tooriginoutlab == "" |
+          input$todestoutid == "" | input$todestoutlab == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID or labels!",
+          text = "You must IDS and labels to all outcomes.",
+          type = "error"
+        )
+      } else if (input$tooriginoutid %in% reactval$outcomes$outcome |
+                 input$todestoutid %in% reactval$outcomes$outcome) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "At least one of the ID you gave to the outcomes is already assigned to another outcome.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        shiny::req(!base::is.null(outcomelist()))
+        selectedout <- outcomelist() |>
+          dplyr::filter(outcome == input$frominitout) |>
+          dplyr::select(outcome, order, type, color)
+        
+        newoutcomes <- tibble::tibble(
+          outcome = c(input$tooriginoutid, input$todestoutid),
+          order = selectedout$order[1],
+          type = selectedout$type[1],
+          color = selectedout$color[1]
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        neworiglabels <- tibble::tibble(
+          outcome = input$tooriginoutid,
+          language = base::unique(reactval$languages$langiso),
+          label = input$tooriginoutlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newdestlabels <- tibble::tibble(
+          outcome = input$todestoutid,
+          language = base::unique(reactval$languages$langiso),
+          label = input$todestoutlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        outcomes <- reactval$outcomes |>
+          dplyr::filter(outcome != input$frominitout) |>
+          dplyr::bind_rows(newoutcomes)
+        
+        outlabels <- reactval$outlabels |>
+          dplyr::filter(outcome != input$frominitout) |>
+          dplyr::bind_rows(neworiglabels) |>
+          dplyr::bind_rows(newdestlabels)
+        
+        allbefore <- reactval$connections |>
+          dplyr::filter(destination == input$frominitout) |>
+          dplyr::mutate(destination = input$tooriginoutid)
+        
+        allafter <- reactval$connections |>
+          dplyr::filter(origin == input$frominitout) |>
+          dplyr::mutate(origin = input$todestoutid)
+        
+        newconnections <- tibble::tibble(
+          origin = input$tooriginoutid,
+          destination = input$todestoutid
+        ) |>
+          dplyr::bind_rows(allbefore) |>
+          dplyr::bind_rows(allafter) |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character)
+        
+        connections <- reactval$connections |>
+          dplyr::filter(
+            origin != input$frominitout,
+            destination != input$frominitout
+          ) |>
+          dplyr::bind_rows(newconnections) |>
+          dplyr::mutate_all(base::as.character)
+        
+        activities <- reactval$activities |>
+          dplyr::mutate(outcomes = stringr::str_replace_all(outcomes, input$frominitout, input$tooriginoutid))
+        
+        reactval$outcomes <- outcomes
+        reactval$outlabels <- outlabels
+        reactval$connections <- connections
+        reactval$activities <- activities
+        
+        shinyalert::shinyalert(
+          title = "Outcome splitted",
+          text = "The outcome has been successfully splitted in the database.",
+          type = "success"
+        )
+      }
+    })
+    
+    
+    
+    # Button to merge two outcomes in one
+    shiny::observeEvent(input$mergeoutcomes, {
+      shiny::req(!base::is.null(outcomelist()))
+      
+      outcomes <- outcomelist()$outcome
+      base::names(outcomes) <- outcomelist()$label
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Merge outcomes",
+        
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("mergenode1"), "First outcome to merge:",
+              choices = outcomes,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("mergenode2"), "Second outcome to merge:",
+              choices = outcomes,
+              selected = NULL,
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        shiny::textInput(ns("mergedid"), "Into outcome ID:", value = "NEWID", width = "100%"),
+        shiny::textInput(ns("mergedlab"), "Into outcome ID label:", value = "New label", width = "100%"),
+        
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("mergeout"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$mergeout, {
+      if (input$mergedid %in% reactval$outcomes$outcome){
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "The ID you gave to the merged outcome is already assigned to another outcome.",
+          type = "error"
+        )
+      } else {
+        
+        shiny::removeModal()
+        shiny::req(!base::is.null(outcomelist()))
+        
+        selectedout <- outcomelist() |>
+          dplyr::filter(outcome %in% c(input$mergenode1, input$mergenode2)) |>
+          dplyr::select(outcome, order, type, color)
+        
+        newoutcome <- tibble::tibble(
+          outcome = input$mergedid,
+          order = selectedout$order[1],
+          type = selectedout$type[1],
+          color = selectedout$color[1]
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newlabel <- tibble::tibble(
+          outcome = input$mergedid,
+          language = base::unique(reactval$languages$langiso),
+          label = input$mergedlab,
+          description = "",
+          lmsid = NA,
+          URL = NA
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        outcomes <- reactval$outcomes |>
+          dplyr::filter(!(outcome %in% c(input$mergenode1, input$mergenode2))) |>
+          dplyr::bind_rows(newoutcome)
+        
+        outlabels <- reactval$outlabels |>
+          dplyr::filter(!(outcome %in% c(input$mergenode1, input$mergenode2))) |>
+          dplyr::bind_rows(newlabel)
+        
+        allbefore <- reactval$connections |>
+          dplyr::filter(destination %in% c(input$mergenode1, input$mergenode2)) |>
+          dplyr::mutate(destination = input$mergedid)
+        
+        allafter <- reactval$connections |>
+          dplyr::filter(origin %in% c(input$mergenode1, input$mergenode2)) |>
+          dplyr::mutate(origin = input$mergedid)
+        
+        newconnections <- dplyr::bind_rows(allbefore, allafter) |>
+          base::unique() |>
+          dplyr::mutate_all(base::as.character) |>
+          stats::na.omit() |>
+          dplyr::filter(origin != "", destination != "")
+        
+        connections <- reactval$connections |>
+          dplyr::filter(
+            !(origin %in% c(input$mergenode1, input$mergenode2)),
+            !(destination %in% c(input$mergenode1, input$mergenode2))
+          ) |>
+          dplyr::bind_rows(newconnections) |>
+          base::unique() |>
+          stats::na.omit() |>
+          dplyr::mutate_all(base::as.character)
+        
+        activities <- reactval$activities |>
+          dplyr::mutate(outcomes = stringr::str_replace_all(outcomes, input$mergenode1, input$mergedid)) |>
+          dplyr::mutate(outcomes = stringr::str_replace_all(outcomes, input$mergenode2, input$mergedid))
+        
+        reactval$outcomes <- outcomes
+        reactval$outlabels <- outlabels
+        reactval$connections <- connections
+        reactval$activities <- activities
+        
+        shinyalert::shinyalert(
+          title = "Outcomes merged",
+          text = "The outcomes have been successfully merged in the database.",
+          type = "success"
+        )
+      }
+    })
+    
+    
+    
+    # Button to change the ID of an outcome in all databases
+    shiny::observeEvent(input$changeoutid, {
+      shiny::req(!base::is.null(reactval$outcomes))
+      outcomeids <- reactval$outcomes$outcome
+      shiny::showModal(shiny::modalDialog(
+        title = "Change the outcome id",
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::selectInput(ns("fromoutid"), "From this ID:", choices = outcomeids, width = "100%")
+          ),
+          shiny::column(
+            6,
+            shiny::textInput(ns("tooutid"), "To thios ID:", value = "NEWID", width = "100%")
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("replaceoutid"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$replaceoutid, {
+      
+      shiny::req(!base::is.null(input$fromoutid))
+      shiny::req(!base::is.null(input$tooutid))
+      
+      fromid <- input$fromoutid
+      toid <- input$tooutid
+      
+      outcomes <- reactval$outcomes
+      connections <- reactval$connections
+      activities <- reactval$activities
+      outlabels <- reactval$outlabels
+      
+      if (!(toid %in% reactval$outcomes$outcome)){
+        
+        shiny::removeModal()
+        
+        outcomes$outcome <- stringr::str_replace_all(
+          outcomes$outcome, fromid, toid
+        )
+        connections$origin <- stringr::str_replace_all(
+          connections$origin, fromid, toid
+        )
+        connections$destination <- stringr::str_replace_all(
+          connections$destination, fromid, toid
+        )
+        outlabels$outcome <- stringr::str_replace_all(
+          outlabels$outcome, fromid, toid
+        )
+        activities$outcomes <- stringr::str_replace_all(
+          activities$outcomes, fromid, toid
+        )
+        
+        reactval$outcomes <- outcomes
+        reactval$connections <- connections
+        reactval$activities <- activities
+        reactval$outlabels <- outlabels
+        
+        shinyalert::shinyalert(
+          title = "Outcome ID replaced",
+          text = "The outcome ID has been replaced in all databases. Please save the map to definitely record your changes.",
+          type = "success"
+        )
+      } else {
+        shinyalert::shinyalert(
+          title = "Outcome ID already existing",
+          text = "You cannot replace the ID of an outcome by an ID which is already existing in the database.",
+          type = "error"
+        )
+      }
+    })
+    
+    
+    
+    # Button to delete an outcome
+    shiny::observeEvent(input$deleteoutcome, {
+      shiny::req(!base::is.null(reactval$outcomes))
+      outcomeids <- reactval$outcomes$outcome
+      shiny::showModal(shiny::modalDialog(
+        title = "Delete an outcome",
+        shiny::selectInput(ns("outcometodelete"), "Outcome to delete:", choices = outcomeids, width = "100%"),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("removeoutcome"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$removeoutcome, {
+      
+      shiny::removeModal()
+      
+      outcomes <- reactval$outcomes |>
+        dplyr::filter(outcome != input$outcometodelete)
+      
+      connections <- reactval$connections |>
+        dplyr::filter(
+          origin != input$outcometodelete,
+          destination != input$outcometodelete
+        )
+      
+      activities <- reactval$activities
+      activities$outcomes <- stringr::str_remove_all(
+        activities$outcomes, input$outcometodelete
+      )
+      
+      outlabels <- reactval$outlabels |>
+        dplyr::filter(outcome != input$outcometodelete)
+      
+      reactval$outcomes <- outcomes
+      reactval$connections <- connections
+      reactval$activities <- activities
+      reactval$outlabels <- outlabels
+      
+      shinyalert::shinyalert(
+        title = "Outcome deleted",
+        text = "The outcome has been deleted from the database.",
+        type = "success"
+      )
+    })
+    
+    
+    
+    
+    
+    # OUTCOME VISUALIZATION ####################################################
+    
+    
+    
+    # Visualize the outcome map.
     output$egooutcomeselection <- shiny::renderUI({
       shiny::req(!base::is.null(outcomelist()))
       outcomes <- outcomelist() |>
@@ -580,6 +1247,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         width = "100%"
       )
     })
+    
+    
     
     outcome_graph <- shiny::eventReactive(input$refreshoutmap, {
       shiny::req(base::nrow(reactval$outlabels) > 1)
@@ -721,6 +1390,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       outcome_graph
     })
     
+    
+    
     output$outcomemap <- shiny::renderUI({
       shiny::req(!base::is.null(outcome_graph()))
       
@@ -745,8 +1416,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         outcome_graph$nodes_df$y <- yaxis
         graph <- DiagrammeR::render_graph(
           outcome_graph,
-          width = "1600px",
-          height = "1000px",
+          width = "1250px",
+          height = "650px",
           as_svg = TRUE
         )
         shiny::incProgress(1/3)
@@ -755,6 +1426,9 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       graph
     })
     
+    
+    
+    # Display statistics
     output$outcometable <- DT::renderDataTable({
       shiny::req(!base::is.null(outcome_graph()))
       outcome_graph()$nodes_df |>
@@ -764,334 +1438,20 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         )
     })
     
-    shiny::observeEvent(input$newoutcome, {
-      shiny::req(!base::is.null(outcomelist()))
-      
-      types <- c("GEN","SPE","PRE")
-      base::names(types) <- c("Generic Learning Outcome","Specific Learning Outcome","Prerequisite")
-      
-      outcomes <- outcomelist()$outcome
-      base::names(outcomes) <- stringr::str_replace_all(outcomelist()$label, "_", " ")
-      
-      shiny::showModal(shiny::modalDialog(
-        title = "Add a new outcome",
-        shiny::fluidRow(
-          shiny::column(
-            2,
-            shiny::textInput(ns("newoutid"), "ID:", value = "", width = "100%")
-          ),
-          shiny::column(
-            6,
-            shiny::textInput(ns("newoutlab"), "Label:", value = "Write a label here", width = "100%")
-          ),
-          shiny::column(
-            2,
-            shiny::selectInput(
-              ns("newouttype"), "Type:",
-              choices = types, selected = types[1],
-              multiple = FALSE, width = "100%"
-            )
-          ),
-          shiny::column(
-            1,
-            shiny::textInput(ns("newoutorder"), "Order:", value = NA, width = "100%")
-          ),
-          shiny::column(
-            1,
-            shinyWidgets::colorPickr(ns("newoutcolor"), "Color:")
-          )
-        ),
-        shiny::textAreaInput(ns("newoutdesc"), "Description:", value = "", width = "100%"),
-        shiny::fluidRow(
-          shiny::column(
-            6,
-            shiny::selectInput(
-              ns("newoutorig"), "Origins:",
-              choices = outcomes, selected = NULL,
-              multiple = TRUE, width = "100%"
-            )
-          ),
-          shiny::column(
-            6,
-            shiny::selectInput(
-              ns("newoutdest"), "Destinations:",
-              choices = outcomes, selected = NULL,
-              multiple = TRUE, width = "100%"
-            )
-          )
-        ),
-        footer = shiny::tagList(
-          shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("addoutcome"), "OK")
-        )
-      ))
-    })
     
-    shiny::observeEvent(input$addoutcome, {
-      if (input$newoutid == ""){
-        shinyalert::shinyalert(
-          title = "Missing ID!",
-          text = "You must give the outcome an ID.",
-          type = "error"
-        )
-      } else if (input$newoutid %in% reactval$outcomes$outcome) {
-        shinyalert::shinyalert(
-          title = "Non unique ID!",
-          text = "The ID you gave to the outcome is already assigned to another outcome.",
-          type = "error"
-        )
-      } else {
-        shiny::removeModal()
-        
-        newoutcomes <- tibble::tibble(
-          outcome = input$newoutid,
-          order = input$newoutorder,
-          type = input$newouttype,
-          color = input$newoutcolor
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        newoutlabels <- tibble::tibble(
-          outcome = input$newoutid,
-          language = base::unique(course_data()$languages$langiso),
-          label = input$newoutlab,
-          description = input$newoutdesc,
-          lmsid = NA,
-          URL = NA
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        reactval$outcomes <- reactval$outcomes |>
-          dplyr::bind_rows(newoutcomes)
-        reactval$outlabels <- reactval$outlabels |>
-          dplyr::bind_rows(newoutlabels)
-        
-        newconnections <- dplyr::bind_rows(
-          tibble::tibble(
-            origin = input$newoutorig,
-            destination = input$newoutid,
-            condition = "None"
-          ),
-          tibble::tibble(
-            origin = input$newoutid,
-            destination = input$newoutdest,
-            condition = "None"
-          )
-        ) |>
-          stats::na.omit() |>
-          dplyr::mutate_all(base::as.character) |>
-          dplyr::filter(
-            origin %in% reactval$outcomes$outcome,
-            destination %in% reactval$outcomes$outcome
-          )
-        
-        reactval$connections <- reactval$connections |>
-          dplyr::bind_rows(newconnections)
-        
-        shinyalert::shinyalert(
-          title = "New outcome added",
-          text = "The new outcome has been successfully added to the database.",
-          type = "success"
-        )
-      }
-    })
-    
-    shiny::observeEvent(input$splitoutcome, {
-      shiny::req(!base::is.null(outcomelist()))
-      
-      outcomes <- outcomelist()$outcome
-      base::names(outcomes) <- outcomelist()$label
-      
-      shiny::showModal(shiny::modalDialog(
-        title = "Split an outcome",
-        shiny::selectInput(
-          ns("frominitout"), "Outcome to split:",
-          choices = outcomes,
-          selected = NULL,
-          multiple = FALSE, width = "100%"
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            5,
-            shiny::textInput(ns("tooriginoutid"), "Into origin:", value = "", width = "100%"),
-            shiny::textInput(ns("tooriginoutlab"), "With the label:", value = "", width = "100%")
-          ),
-          shiny::column(
-            5,
-            shiny::textInput(ns("todestoutid"), "Into destination:", value = "", width = "100%"),
-            shiny::textInput(ns("todestoutlab"), "With the label:", value = "", width = "100%")
-          )
-        ),
-        footer = shiny::tagList(
-          shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("splitout"), "OK")
-        )
-      ))
-    })
-    
-    shiny::observeEvent(input$splitout, {
-      
-      if (input$tooriginoutid == "" | input$tooriginoutlab == "" |
-          input$todestoutid == "" | input$todestoutlab == ""){
-        shinyalert::shinyalert(
-          title = "Missing ID or labels!",
-          text = "You must IDS and labels to all outcomes.",
-          type = "error"
-        )
-      } else if (input$tooriginoutid %in% reactval$outcomes$outcome |
-                 input$todestoutid %in% reactval$outcomes$outcome) {
-        shinyalert::shinyalert(
-          title = "Non unique ID!",
-          text = "At least one of the ID you gave to the outcomes is already assigned to another outcome.",
-          type = "error"
-        )
-      } else {
-        shiny::removeModal()
-        
-        shiny::req(!base::is.null(outcomelist()))
-        selectedout <- outcomelist() |>
-          dplyr::filter(outcome == input$frominitout) |>
-          dplyr::select(outcome, order, type, color)
-        
-        newoutcomes <- tibble::tibble(
-          outcome = c(input$tooriginoutid, input$todestoutid),
-          order = selectedout$order[1],
-          type = selectedout$type[1],
-          color = selectedout$color[1]
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        neworiglabels <- tibble::tibble(
-          outcome = input$tooriginoutid,
-          language = base::unique(course_data()$languages$langiso),
-          label = input$tooriginoutlab,
-          description = "",
-          lmsid = NA,
-          URL = NA
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        newdestlabels <- tibble::tibble(
-          outcome = input$todestoutid,
-          language = base::unique(course_data()$languages$langiso),
-          label = input$todestoutlab,
-          description = "",
-          lmsid = NA,
-          URL = NA
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        reactval$outcomes <- reactval$outcomes |>
-          dplyr::filter(outcome != input$frominitout) |>
-          dplyr::bind_rows(newoutcomes)
-        reactval$outlabels <- reactval$outlabels |>
-          dplyr::filter(outcome != input$frominitout) |>
-          dplyr::bind_rows(neworiglabels) |>
-          dplyr::bind_rows(newdestlabels)
-        
-        allbefore <- reactval$connections |>
-          dplyr::filter(destination == input$frominitout) |>
-          dplyr::mutate(destination = input$tooriginoutid)
-        
-        allafter <- reactval$connections |>
-          dplyr::filter(origin == input$frominitout) |>
-          dplyr::mutate(origin = input$todestoutid)
-        
-        newconnections <- tibble::tibble(
-          origin = input$tooriginoutid,
-          destination = input$todestoutid
-        ) |>
-          dplyr::bind_rows(allbefore) |>
-          dplyr::bind_rows(allafter) |>
-          stats::na.omit() |>
-          dplyr::mutate_all(base::as.character)
-        
-        reactval$connections <- reactval$connections |>
-          dplyr::filter(
-            origin != input$frominitout,
-            destination != input$frominitout
-          ) |>
-          dplyr::bind_rows(newconnections) |>
-          dplyr::mutate_all(base::as.character)
-        
-        shinyalert::shinyalert(
-          title = "Outcome splitted",
-          text = "The outcome has been successfully splitted in the database.",
-          type = "success"
-        )
-      }
-    })
-    
-    shiny::observeEvent(input$newconnection, {
-      shiny::req(!base::is.null(outcomelist()))
-      
-      outcomes <- c(outcomelist()$outcome)
-      base::names(outcomes) <- c(stringr::str_replace_all(outcomelist()$label, "_", " "))
-      
-      shiny::showModal(shiny::modalDialog(
-        title = "Add or edit a connection",
-        shiny::fluidRow(
-          shiny::column(
-            6,
-            shiny::selectInput(
-              ns("newconnectionorig"), "Origin:",
-              choices = outcomes,
-              selected = NULL,
-              multiple = FALSE, width = "100%"
-            )
-          ),
-          shiny::column(
-            6,
-            shiny::selectInput(
-              ns("newconnectiondest"), "Destination:",
-              choices = outcomes,
-              selected = NULL,
-              multiple = FALSE, width = "100%"
-            )
-          )
-        ),
-        footer = shiny::tagList(
-          shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("addconnection"), "OK")
-        )
-      ))
-    })
-    
-    shiny::observeEvent(input$addconnection, {
-      shiny::removeModal()
-      
-      newconnection <- tibble::tibble(
-        origin = input$newconnectionorig,
-        destination = input$newconnectiondest
-      )
-      
-      connections <- reactval$connections |>
-        dplyr::anti_join(newconnection, by = c("origin","destination")) |>
-        dplyr::anti_join(dplyr::rename(
-          newconnection, origin = destination,
-          destination = origin),
-          by = c("origin","destination")
-        ) |>
-        dplyr::bind_rows(newconnection)
-      
-      reactval$connections <- connections
-      
-      shinyalert::shinyalert(
-        title = "Connection added or edited",
-        text = "The connection has been added or changed in the database.",
-        type = "success"
-      )
-    })
     
     
     
     # ACTIVITIES ###############################################################
-    # Add, edit or remove activities
     
-    # Combine activity information for a selected language
+    
+    # ACTIVITY EDITION #########################################################
+    
+    
+    
+    # Create activities and edit attributes specific to a language in a table.
     activitylist <- shiny::reactive({
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
+      shiny::req(!base::is.na(pathfile()))
       shiny::req(!base::is.null(input$slctlang))
       shiny::req(!base::is.null(reactval$activities))
       labels <- reactval$actlabels |>
@@ -1099,90 +1459,67 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::select(-language)
       reactval$activities |>
         dplyr::left_join(labels, by = "activity") |>
-        dplyr::select(activity, label, description, lmsid, URL, order, type) |>
-        dplyr::mutate(
-          type = base::factor(type, levels = c(
-            "Slide","Video","Textbook","Note","Tutorial","Game","Case","Test"
-          )),
-          order = base::as.numeric(order)
-        ) |>
+        dplyr::select(activity, order, label, description, lmsid, URL) |>
+        dplyr::mutate(order = base::as.numeric(order)) |>
         dplyr::arrange(order)
     })
     
-    # Create activities and edit attributes specific to a language..
-    output$createactivities <- rhandsontable::renderRHandsontable({
+    
+    
+    output$editactivities <- rhandsontable::renderRHandsontable({
       shiny::req(!base::is.null(activitylist()))
       activitylist() |>
-        dplyr::add_row() |>
-        dplyr::mutate(newid = "") |>
         rhandsontable::rhandsontable(
           height = 500, width = "100%", rowHeaders = NULL, stretchH = "all"
         ) |>
         rhandsontable::hot_cols(
-          colWidths = c("10%","20%","28%","8%","8%","8%","8%","10%")
+          colWidths = c("10%","5%","25%","40%","10%","10%")
         ) |>
+        rhandsontable::hot_col(1, readOnly = TRUE) |>
         rhandsontable::hot_context_menu(
-          allowRowEdit = TRUE, allowColEdit = FALSE
+          allowRowEdit = FALSE, allowColEdit = FALSE
         )
     })
     
-    shiny::observeEvent(input$updateactlist, {
-      updated_activities <- rhandsontable::hot_to_r(input$createactivities) |>
+    
+    
+    # Update the language specific attributes of activities
+    shiny::observeEvent(input$updateactivities, {
+      shiny::req(!base::is.null(input$editactivities))
+      
+      updated_labels <- rhandsontable::hot_to_r(input$editactivities) |>
         dplyr::mutate_all(base::as.character) |>
         dplyr::filter(!base::is.na(activity), activity != "")
       
-      paths <- reactval$paths
+      updated_activities <- updated_labels |>
+        dplyr::select(activity, order)
+      
+      updated_labels <- updated_labels |>
+        dplyr::select(-order)
+      
       actlabels <- reactval$actlabels
-      actattributes <- reactval$actattributes
+      activities <- reactval$activities
       
-      changed_ids <- updated_activities |>
-        dplyr::filter(newid != "") |>
-        dplyr::select(activity, newid)
-      
-      for (i in base::seq_len(base::nrow(changed_ids))) {
-        fromid <- changed_ids$activity[[i]]
-        toid <- changed_ids$newid[[i]]
-        updated_activities$activity <- stringr::str_replace_all(
-          updated_activities$activity, fromid, toid
-        )
-        actlabels$activity <- stringr::str_replace_all(
-          actlabels$activity, fromid, toid
-        )
-        paths$origin <- stringr::str_replace_all(
-          paths$origin, fromid, toid
-        )
-        paths$destination <- stringr::str_replace_all(
-          paths$destination, fromid, toid
-        )
-        actattributes$activity <- stringr::str_replace_all(
-          actattributes$activity, fromid, toid
-        )
-      }
-      
-      updated_activities <- updated_activities |>
-        dplyr::select(-newid)
-      
-      checkids <- updated_activities |>
+      checkids <- updated_labels |>
         dplyr::group_by(activity) |>
         dplyr::count() |>
         dplyr::filter(n > 1)
       
-      misslabel <- updated_activities |>
+      misslabel <- updated_labels |>
         dplyr::filter(base::is.na(label) | label == "")
       
       if (base::nrow(checkids) == 0 & base::nrow(misslabel) == 0){
         
-        updated_actlabels <- updated_activities |>
+        updated_actlabels <- updated_labels |>
           dplyr::mutate(language = input$slctlang) |>
           dplyr::select(activity, language, label, description, lmsid, URL) |>
           base::unique()
         
-        updated_activities <- updated_activities |>
-          dplyr::select(activity, order, type) |>
-          base::unique()
+        all_languages <- reactval$languages$langiso
         
-        all_languages <- base::unique(course_data()$languages$langiso)
-        actlabels <- dplyr::select(updated_activities, activity) |>
+        actlabels <- updated_labels |>
+          dplyr::select(activity) |>
+          base::unique() |>
           dplyr::mutate(language = base::list(all_languages)) |>
           tidyr::unnest(language) |>
           dplyr::left_join(actlabels, by = c("activity", "language")) |>
@@ -1203,104 +1540,91 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::bind_rows(updated_actlabels) |>
           base::unique()
         
-        actattributes <- updated_activities |>
-          dplyr::select(activity) |>
-          base::unique() |>
-          dplyr::left_join(actattributes, by = "activity") |>
-          tidyr::replace_na(base::list(
-            requirement = "OPT",
-            weigth = "0",
-            level = "NOV",
-            time_space = "AOL",
-            social = "IND",
-            duration = "0"
-          ))
-        
-        paths <- paths |>
-          dplyr::filter(
-            origin %in% updated_activities$activity,
-            destination %in% updated_activities$activity
-          )
-        
         reactval$actlabels <- actlabels
-        reactval$activities <- updated_activities
-        reactval$actattributes <- actattributes
-        reactval$paths <- paths
+        
+        activities <- activities |>
+          dplyr::select(-order) |>
+          dplyr::left_join(updated_activities, by = "activity") |>
+          dplyr::select(activity, order, dplyr::everything())
+        
+        reactval$activities <- activities
+        
+        shinyalert::shinyalert(
+          "Activity labels updated",
+          "Activity orders and labels have been updated. Refresh the map to see the change and save the file to keep the changes.",
+          type = "success"
+        )
         
       } else if (base::nrow(checkids) > 0) {
         shinyalert::shinyalert(
           "Duplicated IDs",
-          base::paste0("The ID(s) ", base::paste(checkids$activity, collapse = ", "), " is/are duplicated. They should be unique."),
+          base::paste0(
+            "The ID(s) ",
+            base::paste(checkids$activity, collapse = ", "),
+            " is/are duplicated. They should be unique."
+          ),
           type = "error"
         )
       } else if (base::nrow(misslabel) > 0){
         shinyalert::shinyalert(
           "Missing label",
-          base::paste0("The ID(s) ", base::paste(misslabel$activity, collapse = ", "), " has (have) no label; please define a unique label."),
+          base::paste0(
+            "The ID(s) ",
+            base::paste(misslabel$activity, collapse = ", "),
+            " has (have) no label; please define a unique label."
+          ),
           type = "error"
         )
       }
-        
     })
     
+    
+    
     # Edit the attributes common to all languages.
-    chooseactivity <- shiny::reactive({
+    list_of_activities <- shiny::reactive({
       shiny::req(!base::is.null(activitylist()))
-      actchoices <- base::unique(activitylist()$activity)
+      actchoices <- activitylist()$activity
       base::names(actchoices) <- activitylist()$label
       actchoices
     })
     
-    selected_activity <- editR::selection_server("slctact", chooseactivity)
+    selected_activity <- pathR::selection_server("slctact", list_of_activities)
     
-    output$editactivities <- shiny::renderUI({
+    output$editattributes <- shiny::renderUI({
       shiny::req(!base::is.null(activitylist()))
       shiny::req(!base::is.null(outcomelist()))
       shiny::req(!base::is.null(selected_activity()))
       shiny::req(!base::is.null(input$slctlang))
       
-      activity <- activitylist() |>
+      actlabels <- activitylist() |>
         dplyr::filter(activity == selected_activity()) |>
-        dplyr::mutate(
-          label = stringr::str_replace_all(label, "_", " "),
-          type = base::as.character(type)
-        )
+        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
       
-      attributes <- reactval$actattributes |>
+      activity <- reactval$activities |>
         dplyr::filter(activity == selected_activity())
       
+      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
       acttype <- activity$type[[1]]
       
       outcomes <- c(NA, outcomelist()$outcome)
       base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
       
-      preslctoutcomes <- attributes$outcomes[1] |>
+      preslctoutcomes <- activity$outcomes[1] |>
         stringr::str_split(" ", simplify = TRUE) |>
         base::as.character()
       
-      if (acttype == "Test"){
-        resources <- course_paths()$subfolders$tests |>
-          base::list.dirs(recursive = FALSE, full.names = FALSE) |>
-          base::setdiff(c("archives","default"))
-        tree <- stringr::str_remove_all(tree()$course$tree, ".RData$")
-        resources <- resources[stringr::str_detect(resources, tree)]
-      } else if (acttype == "Textbook") {
-        resources <- base::unlist(tree()$textbook$link)
-        base::names(resources) <- base::unlist(tree()$textbook$title)
-      } else {
-        tmp <- filtered() |>
-          dplyr::filter(type == acttype) |>
-          dplyr::select(code, title)
-        resources <- base::unlist(tmp$code)
-        base::names(resources) <- base::unlist(tmp$title)
-      }
-      notcov <- c('Not covered yet' = NA)
-      resources <- c(notcov, resources)
+      subgroups <- reactval$activities$subgroup |>
+        base::unlist() |>
+        base::as.character() |>
+        stats::na.omit() |>
+        base::unique()
+      
+      preslctsubgroup <- activity$subgroup[1]
       
       attrchoices <- reactval$attributes |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::mutate(label = base::paste0("<i class='fa fa-",icon,"'> | ",value,"</i>")) |>
-          dplyr::select(attribute, label, value)
+        dplyr::select(attribute, label, value)
       
       tmp <- attrchoices |>
         dplyr::filter(attribute == "requirement")
@@ -1323,22 +1647,52 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       base::names(socchoices) <- base::unlist(tmp$label)
       
       base::list(
-        shiny::h2(activity$label[[1]]),
-        shiny::HTML(acttype),
+        shiny::h2(actlabels$label[[1]]),
         shiny::tags$hr(),
-        shiny::selectInput(
-          ns("defoutcomes"),
-          "Outcomes:",
-          choices = outcomes,
-          selected = preslctoutcomes,
-          multiple = TRUE
-        ),
-        shiny::selectInput(
-          ns("defresource"),
-          "Resource:",
-          choices = resources,
-          selected = attributes$resource[1],
-          multiple = FALSE
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::numericInput(
+              ns("deforder"),
+              "Order:",
+              value = activity$order[1],
+              width = "100%"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              ns("deftype"),
+              "Type:",
+              choices = types,
+              selected = acttype,
+              multiple = FALSE,
+              width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shiny::selectInput(
+              ns("defoutcomes"),
+              "Outcomes:",
+              choices = outcomes,
+              selected = preslctoutcomes,
+              multiple = TRUE,
+              width = "100%"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectizeInput(
+              ns("defsubgroup"),
+              "Subgroup:",
+              choices = subgroups,
+              selected = preslctsubgroup,
+              multiple = FALSE,
+              options = base::list(create = TRUE),
+              width = "100%"
+            )
+          )
         ),
         shiny::fluidRow(
           shiny::column(
@@ -1347,7 +1701,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
               inputId = ns("defreq"),
               label = "Requirement:", 
               choices = reqchoices,
-              selected = attributes$requirement[1],
+              selected = activity$requirement[1],
               justified = TRUE,
               status = "danger",
               size = "normal",
@@ -1361,7 +1715,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
               inputId = ns("deflevel"),
               label = "Level:", 
               choices = levchoices,
-              selected = attributes$level[1],
+              selected = activity$level[1],
               justified = TRUE,
               status = "warning",
               size = "normal",
@@ -1375,7 +1729,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
               inputId = ns("deftimespace"),
               label = "Time and Space:", 
               choices = timspachoices,
-              selected = attributes$time_space[1],
+              selected = activity$time_space[1],
               justified = TRUE,
               status = "info",
               size = "normal",
@@ -1389,7 +1743,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
               inputId = ns("defsocial"),
               label = "Social:", 
               choices = socchoices,
-              selected = attributes$social[1],
+              selected = activity$social[1],
               justified = TRUE,
               status = "success",
               size = "normal",
@@ -1404,7 +1758,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             shiny::sliderInput(
               ns("defweight"), "Weigth:",
               min = 0., max = 1, step = 0.01,
-              value = base::as.numeric(attributes$weigth[1]),
+              value = base::as.numeric(activity$weigth[1]),
               width = "100%"
             )
           ),
@@ -1413,7 +1767,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             shiny::numericInput(
               ns("defduration"), "Duration:",
               min = 5, max = 480, step = 5,
-              value = base::as.numeric(attributes$duration[1]),
+              value = base::as.numeric(activity$duration[1]),
               width = "100%"
             )
           )
@@ -1424,7 +1778,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             shinyWidgets::airDatepickerInput(
               inputId = ns("defstart"),
               label = "Start:", 
-              value = base::as.Date(attributes$start[1]),
+              value = base::as.Date(activity$start[1]),
               width = "100%"
             )
           ),
@@ -1433,7 +1787,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
             shinyWidgets::airDatepickerInput(
               inputId = ns("defend"),
               label = "End:", 
-              value = base::as.Date(attributes$end[1]),
+              value = base::as.Date(activity$end[1]),
               width = "100%"
             )
           )
@@ -1442,18 +1796,23 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     })
     
     shiny::observeEvent(input$updateactattr, {
+      shiny::req(!base::is.null(reactval$activities))
       shiny::req(!base::is.null(selected_activity()))
+      shiny::req(!base::is.null(input$deforder))
+      shiny::req(!base::is.null(input$deftype))
       shiny::req(!base::is.null(input$defoutcomes))
-      shiny::req(!base::is.null(input$defresource))
+      shiny::req(!base::is.null(input$defsubgroup))
       shiny::req(!base::is.null(input$defreq))
       shiny::req(!base::is.null(input$deftimespace))
       shiny::req(!base::is.null(input$defsocial))
       shiny::req(!base::is.null(input$defweight))
       
-      update_actattributes <- tibble::tibble(
+      update_activity <- tibble::tibble(
         activity = selected_activity(),
+        order = input$deforder,
+        type = input$deftype,
         outcomes = base::paste(input$defoutcomes, collapse = " "),
-        resource = input$defresource,
+        subgroup = input$defsubgroup,
         requirement = input$defreq,
         weigth = input$defweight,
         level = input$deflevel,
@@ -1465,45 +1824,396 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       ) |>
         dplyr::mutate_all(base::as.character)
       
-      actattributes <- reactval$actattributes |>
+      activities <- reactval$activities |>
         dplyr::filter(activity != selected_activity()) |>
-        dplyr::bind_rows(update_actattributes)
+        dplyr::bind_rows(update_activity)
       
-      reactval$actattributes <- actattributes
+      reactval$activities <- activities
+      
+      shinyalert::shinyalert(
+        "Activity attributes updated",
+        "The attributes of this activity have been updated. Refresh the map to see the change and save the file to keep the changes.",
+        type = "success"
+      )
     })
     
-    # Create, modify or remove links between activities.
-    output$editpaths <- rhandsontable::renderRHandsontable({
-      reactval$paths |>
-        stats::na.omit() |>
-        dplyr::add_row() |>
-        dplyr::mutate(
-          origin = base::factor(origin, reactval$activities$activity),
-          destination = base::factor(destination, reactval$activities$activity),
-          condition = base::factor(condition, levels = c("None","Done","OK","Not OK"))
-        ) |>
-        dplyr::arrange(origin, destination) |>
-        rhandsontable::rhandsontable(
-          height = 500, width = "100%", rowHeaders = NULL, stretchH = "all"
-        ) |>
-        rhandsontable::hot_cols(
-          colWidths = c("35%","35%","30%")
-        ) |>
-        rhandsontable::hot_context_menu(
-          allowRowEdit = TRUE, allowColEdit = FALSE
+    
+    
+    # Button to create a new activity
+    shiny::observeEvent(input$newactivity, {
+      
+      shiny::req(!base::is.null(outcomelist()))
+      shiny::req(!base::is.null(reactval$activities))
+      
+      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
+      outcomes <- c(NA, outcomelist()$outcome)
+      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
+      subgroups <- c(NA, base::unique(reactval$activities$subgroup))
+      attrchoices <- reactval$attributes |>
+        dplyr::filter(language == input$slctlang) |>
+        dplyr::mutate(label = base::paste0("<i class='fa fa-",icon,"'> | ",value,"</i>")) |>
+        dplyr::select(attribute, label, value)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "requirement")
+      reqchoices <- base::unlist(tmp$value)
+      base::names(reqchoices) <- base::unlist(tmp$label)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "level")
+      levchoices <- base::unlist(tmp$value)
+      base::names(levchoices) <- base::unlist(tmp$label)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "time_space")
+      timspachoices <- base::unlist(tmp$value)
+      base::names(timspachoices) <- base::unlist(tmp$label)
+      tmp <- attrchoices |>
+        dplyr::filter(attribute == "social")
+      socchoices <- base::unlist(tmp$value)
+      base::names(socchoices) <- base::unlist(tmp$label)
+      
+      shiny::showModal(shiny::modalDialog(
+        title = "Add a new activity",
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::textInput(ns("newactid"), "ID:", value = "", width = "100%")
+          ),
+          shiny::column(
+            7,
+            shiny::textInput(ns("newactlab"), "Label:", value = "Write a label here", width = "100%")
+          ),
+          shiny::column(
+            1,
+            shiny::numericInput(
+              ns("newactorder"), "Order:",
+              value = 1+base::nrow(reactval$activities),
+              width = "100%"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              ns("newacttype"), "Type:",
+              choices = types, selected = types[1],
+              multiple = FALSE, width = "100%"
+            )
+          )
+        ),
+        
+        shiny::fluidRow(
+          shiny::column(
+            7,
+            shiny::textAreaInput(ns("newactdesc"), "Description:", value = "", width = "100%")
+          ),
+          shiny::column(
+            2,
+            shiny::textInput(ns("newactlmsid"), "LMSID:", value = "", width = "100%")
+          ),
+          shiny::column(
+            3,
+            shiny::textInput(ns("newacturl"), "URL:", value = "", width = "100%")
+          )
+        ),
+        
+        shiny::fluidRow(
+          shiny::column(
+            8,
+            shiny::selectInput(
+              ns("newactoutcome"), "Outcomes:",
+              choices = outcomes,
+              multiple = TRUE, width = "100%"
+            )
+          ),
+          shiny::column(
+            4,
+            shiny::selectizeInput(
+              ns("newactsubgroup"), "Subgroup:",
+              choices = subgroups,
+              multiple = FALSE,
+              options = base::list(create = TRUE),
+              width = "100%"
+            )
+          )
+        ),
+        
+        shiny::fluidRow(
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newactreq"),
+              label = "Requirement:", 
+              choices = reqchoices,
+              selected = reqchoices[1],
+              justified = TRUE,
+              status = "danger",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newactlevel"),
+              label = "Level:", 
+              choices = levchoices,
+              selected = levchoices[1],
+              justified = TRUE,
+              status = "warning",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newacttimespace"),
+              label = "Time and Space:", 
+              choices = timspachoices,
+              selected = timspachoices[1],
+              justified = TRUE,
+              status = "info",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          ),
+          shiny::column(
+            3,
+            shinyWidgets::radioGroupButtons(
+              inputId = ns("newactsocial"),
+              label = "Social:", 
+              choices = socchoices,
+              selected = socchoices[1],
+              justified = TRUE,
+              status = "success",
+              size = "normal",
+              checkIcon = base::list(yes = shiny::icon("check")),
+              direction = "vertical"
+            )
+          )
+        ),
+        
+        shiny::fluidRow(
+          shiny::column(
+            9,
+            shiny::sliderInput(
+              ns("newactweight"), "Weigth:",
+              min = 0., max = 1, step = 0.01,
+              value = 0, width = "100%"
+            )
+          ),
+          shiny::column(
+            3,
+            shiny::numericInput(
+              ns("newactduration"), "Duration:",
+              min = 5, max = 480, step = 5,
+              value = 0, width = "100%"
+            )
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shinyWidgets::airDatepickerInput(
+              inputId = ns("newactstart"),
+              label = "Start:", width = "100%"
+            )
+          ),
+          shiny::column(
+            6,
+            shinyWidgets::airDatepickerInput(
+              inputId = ns("newactend"),
+              label = "End:", width = "100%"
+            )
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("addactivity"), "OK")
         )
+      ))
     })
     
-    shiny::observeEvent(input$updatepaths, {
-      updated_paths <- rhandsontable::hot_to_r(input$editpaths) |>
-        dplyr::mutate_all(base::as.character) |>
-        stats::na.omit() |>
-        base::unique() |>
-        dplyr::filter(origin != destination)
-      reactval$paths <- updated_paths
+    
+    
+    shiny::observeEvent(input$addactivity, {
+      if (input$newactid == ""){
+        shinyalert::shinyalert(
+          title = "Missing ID!",
+          text = "You must give the activity an ID.",
+          type = "error"
+        )
+      } else if (input$newactid %in% reactval$activities$activity) {
+        shinyalert::shinyalert(
+          title = "Non unique ID!",
+          text = "The ID you gave to the activity is already assigned to another activity.",
+          type = "error"
+        )
+      } else {
+        shiny::removeModal()
+        
+        newactivities <- tibble::tibble(
+          activity = input$newactid,
+          order = input$newactorder,
+          type = input$newacttype,
+          outcomes = base::paste(input$newactoutcome, sep = " "),
+          subgroup = input$newactsubgroup,
+          requirement = input$newactreq,
+          weigth = input$newactweight,
+          level = input$newactlevel,
+          time_space = input$newacttimespace,
+          social = input$newactsocial,
+          duration = input$newactduration,
+          start = input$newactstart,
+          end = input$newactend
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        newactlabels <- tibble::tibble(
+          activity = input$newactid,
+          order = input$newactorder,
+          language = reactval$languages$langiso,
+          label = input$newactlab,
+          description = input$newactdesc,
+          lmsid = input$newactlmsid,
+          URL = input$newacturl
+        ) |>
+          dplyr::mutate_all(base::as.character)
+        
+        activities <- reactval$activities |>
+          dplyr::bind_rows(newactivities) |>
+          dplyr::arrange(order)
+        actlabels <- reactval$actlabels |>
+          dplyr::bind_rows(newactlabels) |>
+          dplyr::arrange(order) |>
+          dplyr::select(-order)
+        
+        reactval$activities <- activities
+        reactval$actlabels <- actlabels
+        
+        shinyalert::shinyalert(
+          title = "New activity added",
+          text = "The new activity has been successfully added to the database.",
+          type = "success"
+        )
+      }
     })
     
-    # Visualize the activity map.
+    
+    
+    # Button to change the ID of an activity in all databases
+    shiny::observeEvent(input$changeactid, {
+      shiny::req(!base::is.null(reactval$activities))
+      activityids <- reactval$activities$activity
+      shiny::showModal(shiny::modalDialog(
+        title = "Change the activity id",
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::selectInput(ns("fromactid"), "From this ID:", choices = activityids, width = "100%")
+          ),
+          shiny::column(
+            6,
+            shiny::textInput(ns("toactid"), "To thios ID:", value = "NEWID", width = "100%")
+          )
+        ),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("replaceactid"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$replaceactid, {
+      
+      shiny::req(!base::is.null(input$fromactid))
+      shiny::req(!base::is.null(input$toactid))
+      
+      fromid <- input$fromactid
+      toid <- input$toactid
+      
+      activities <- reactval$activities
+      actlabels <- reactval$actlabels
+      
+      if (!(toid %in% reactval$activities$activity)){
+        
+        shiny::removeModal()
+        
+        activities$activity <- stringr::str_replace_all(
+          activities$activity, fromid, toid
+        )
+        actlabels$activity <- stringr::str_replace_all(
+          actlabels$activity, fromid, toid
+        )
+        
+        reactval$activities <- activities
+        reactval$actlabels <- actlabels
+        
+        shinyalert::shinyalert(
+          title = "Activity ID replaced",
+          text = "The activity ID has been replaced in all databases. Please save the map to definitely record your changes.",
+          type = "success"
+        )
+      } else {
+        shinyalert::shinyalert(
+          title = "Activity ID already existing",
+          text = "You cannot replace the ID of an activity by an ID which is already existing in the database.",
+          type = "error"
+        )
+      }
+    })
+    
+    
+    
+    # Button to delete an outcome
+    shiny::observeEvent(input$deleteactivity, {
+      shiny::req(!base::is.null(reactval$outcomes))
+      activityids <- reactval$activities$activity
+      shiny::showModal(shiny::modalDialog(
+        title = "Delete an activity",
+        shiny::selectInput(ns("activitytodelete"), "Activity to delete:", choices = activityids, width = "100%"),
+        footer = shiny::tagList(
+          shiny::modalButton("Cancel"),
+          shiny::actionButton(ns("removeactivity"), "OK")
+        )
+      ))
+    })
+    
+    
+    
+    shiny::observeEvent(input$removeactivity, {
+      
+      shiny::removeModal()
+      
+      activities <- reactval$activities |>
+        dplyr::filter(activity != input$activitytodelete)
+      
+      actlabels <- reactval$actlabels |>
+        dplyr::filter(activity != input$activitytodelete)
+      
+      reactval$activities <- activities
+      reactval$actlabels <- actlabels
+      
+      shinyalert::shinyalert(
+        title = "Activity deleted",
+        text = "The activity has been deleted from the database.",
+        type = "success"
+      )
+    })
+    
+    
+    
+    
+    
+    # PATH GENERATION ##########################################################
+    
+    
+    
+    # ACTIVITY VISUALIZATION ###################################################
+    
     
     activity_labels <- shiny::reactive({
       input$refreshmapact
@@ -1525,7 +2235,6 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       reactval$actlabels |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::left_join(reactval$activities, by = "activity") |>
-        dplyr::left_join(reactval$actattributes, by = "activity") |>
         dplyr::mutate(
           outcome = purrr::map_chr(outcomes, function(x){
             y <- stringr::str_split(x, " ", simplify = TRUE) |>
@@ -1581,8 +2290,19 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
       )
     })
     
+    
+    
+    paths <- shiny::reactive({
+      shiny::req(!base::is.null(reactval$connections))
+      shiny::req(!base::is.null(reactval$activities))
+      pathR::create_path(reactval$activities, reactval$connections)
+    })
+    
+    
+    
     activity_graph <- shiny::eventReactive(input$refreshactmap, {
       shiny::req(!base::is.null(activity_labels()))
+      shiny::req(!base::is.null(paths()))
       
       shiny::withProgress(message = "Building the network of activities...", {
         shiny::incProgress(1/10)
@@ -1590,6 +2310,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         activity_graph <- DiagrammeR::create_graph()
         
         nodes <- activity_labels() |>
+          dplyr::filter(activity %in% c(paths()$origin, paths()$destination)) |>
           dplyr::group_by(activity) |>
           dplyr::slice_head(n = 1) |>
           tidyr::replace_na(base::list(description = " ")) |>
@@ -1652,7 +2373,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         
         shiny::incProgress(1/10)
         
-        edges <- reactval$paths |>
+        edges <- paths() |>
           dplyr::left_join(dplyr::select(nodes, origin = activity, laborig = label, reqorig = requirement), by = "origin") |>
           dplyr::left_join(dplyr::select(nodes, destination = activity, labdest = label, reqdest = requirement), by = "destination") |>
           dplyr::mutate(
@@ -1815,8 +2536,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         shiny::incProgress(1/5)
         graph <- DiagrammeR::render_graph(
           activity_graph,
-          width = "1600px",
-          height = "1000px",
+          width = "1250px",
+          height = "650px",
           as_svg = TRUE
         )
         shiny::incProgress(1/5)
@@ -1834,517 +2555,40 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         )
     })
     
-    shiny::observeEvent(input$newactivity, {
-      
-      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
-      outcomes <- c(NA, outcomelist()$outcome)
-      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
-      
-      attrchoices <- reactval$attributes |>
-        dplyr::filter(language == input$slctlang) |>
-        dplyr::mutate(label = base::paste0("<i class='fa fa-",icon,"'> | ",value,"</i>")) |>
-        dplyr::select(attribute, label, value)
-      tmp <- attrchoices |>
-        dplyr::filter(attribute == "requirement")
-      reqchoices <- base::unlist(tmp$value)
-      base::names(reqchoices) <- base::unlist(tmp$label)
-      tmp <- attrchoices |>
-        dplyr::filter(attribute == "level")
-      levchoices <- base::unlist(tmp$value)
-      base::names(levchoices) <- base::unlist(tmp$label)
-      tmp <- attrchoices |>
-        dplyr::filter(attribute == "time_space")
-      timspachoices <- base::unlist(tmp$value)
-      base::names(timspachoices) <- base::unlist(tmp$label)
-      tmp <- attrchoices |>
-        dplyr::filter(attribute == "social")
-      socchoices <- base::unlist(tmp$value)
-      base::names(socchoices) <- base::unlist(tmp$label)
-      
-      preporigdest <- reactval$actlabels |>
-        dplyr::filter(language == input$slctlang) |>
-        dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
-      origdest <- preporigdest$activity
-      base::names(origdest) <- preporigdest$label
-      
-      shiny::showModal(shiny::modalDialog(
-        title = "Add a new activity",
-        shiny::fluidRow(
-          shiny::column(
-            3,
-            shiny::textInput(ns("newactid"), "ID:", value = "", width = "100%")
-          ),
-          shiny::column(
-            6,
-            shiny::textInput(ns("newactlab"), "Label:", value = "Write a label here", width = "100%")
-          ),
-          shiny::column(
-            3,
-            shiny::selectInput(
-              ns("newacttype"), "Type:",
-              choices = types, selected = types[1],
-              multiple = FALSE, width = "100%"
-            )
-          )
-        ),
-        shiny::textAreaInput(ns("newactdesc"), "Description:", value = "", width = "100%"),
-        shiny::fluidRow(
-          shiny::column(
-            9,
-            shiny::selectInput(
-              ns("newactoutcome"), "Outcomes:",
-              choices = outcomes,
-              multiple = TRUE, width = "100%"
-            )
-          ),
-          shiny::column(
-            3,
-            shiny::textInput(ns("newactorder"), "Order:", value = "", width = "100%")
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            3,
-            shinyWidgets::radioGroupButtons(
-              inputId = ns("newactreq"),
-              label = "Requirement:", 
-              choices = reqchoices,
-              selected = reqchoices[1],
-              justified = TRUE,
-              status = "danger",
-              size = "normal",
-              checkIcon = base::list(yes = shiny::icon("check")),
-              direction = "vertical"
-            )
-          ),
-          shiny::column(
-            3,
-            shinyWidgets::radioGroupButtons(
-              inputId = ns("newactlevel"),
-              label = "Level:", 
-              choices = levchoices,
-              selected = levchoices[1],
-              justified = TRUE,
-              status = "warning",
-              size = "normal",
-              checkIcon = base::list(yes = shiny::icon("check")),
-              direction = "vertical"
-            )
-          ),
-          shiny::column(
-            3,
-            shinyWidgets::radioGroupButtons(
-              inputId = ns("newacttimespace"),
-              label = "Time and Space:", 
-              choices = timspachoices,
-              selected = timspachoices[1],
-              justified = TRUE,
-              status = "info",
-              size = "normal",
-              checkIcon = base::list(yes = shiny::icon("check")),
-              direction = "vertical"
-            )
-          ),
-          shiny::column(
-            3,
-            shinyWidgets::radioGroupButtons(
-              inputId = ns("newactsocial"),
-              label = "Social:", 
-              choices = socchoices,
-              selected = socchoices[1],
-              justified = TRUE,
-              status = "success",
-              size = "normal",
-              checkIcon = base::list(yes = shiny::icon("check")),
-              direction = "vertical"
-            )
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            9,
-            shiny::sliderInput(
-              ns("newactweight"), "Weigth:",
-              min = 0., max = 1, step = 0.01,
-              value = 0, width = "100%"
-            )
-          ),
-          shiny::column(
-            3,
-            shiny::numericInput(
-              ns("newactduration"), "Duration:",
-              min = 5, max = 480, step = 5,
-              value = 0, width = "100%"
-            )
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            6,
-            shinyWidgets::airDatepickerInput(
-              inputId = ns("newactstart"),
-              label = "Start:", width = "100%"
-            )
-          ),
-          shiny::column(
-            6,
-            shinyWidgets::airDatepickerInput(
-              inputId = ns("newactend"),
-              label = "End:", width = "100%"
-            )
-          )
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            6,
-            shiny::selectInput(
-              ns("newactorig"), "Origins:",
-              choices = origdest, selected = NULL,
-              multiple = TRUE, width = "100%"
-            )
-          ),
-          shiny::column(
-            6,
-            shiny::selectInput(
-              ns("newactdest"), "Destinations:",
-              choices = origdest, selected = NULL,
-              multiple = TRUE, width = "100%"
-            )
-          )
-        ),
-        footer = shiny::tagList(
-          shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("addactivity"), "OK")
-        )
-      ))
-    })
     
-    shiny::observeEvent(input$addactivity, {
-      if (input$newactid == ""){
-        shinyalert::shinyalert(
-          title = "Missing ID!",
-          text = "You must give the activity an ID.",
-          type = "error"
-        )
-      } else if (input$newactid %in% reactval$activities$activity) {
-        shinyalert::shinyalert(
-          title = "Non unique ID!",
-          text = "The ID you gave to the activity is already assigned to another activity.",
-          type = "error"
-        )
-      } else {
-        shiny::removeModal()
-        
-        newactivities <- tibble::tibble(
-          activity = input$newactid,
-          order = input$newactorder,
-          type = input$newacttype
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        newactlabels <- tibble::tibble(
-          activity = input$newactid,
-          language = base::unique(course_data()$languages$langiso),
-          label = input$newactlab,
-          description = input$newactdesc,
-          lmsid = NA,
-          URL = NA
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        newactattributes <- tibble::tibble(
-          activity = input$newactid,
-          outcomes = base::paste(input$newactoutcome, sep = " "),
-          resource = NA,
-          requirement = input$newactreq,
-          weigth = input$newactweight,
-          time_space = input$newacttimespace,
-          level = input$newactlevel,
-          social = input$newactsocial,
-          duration = input$newactduration,
-          start = input$newactstart,
-          end = input$newactend
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        reactval$activities <- reactval$activities |>
-          dplyr::bind_rows(newactivities)
-        reactval$actlabels <- reactval$actlabels |>
-          dplyr::bind_rows(newactlabels)
-        reactval$actattributes <- reactval$actattributes |>
-          dplyr::bind_rows(newactattributes)
-        
-        newpaths <- dplyr::bind_rows(
-          tibble::tibble(
-            origin = input$newactorig,
-            destination = input$newactid,
-            condition = "None"
-          ),
-          tibble::tibble(
-            origin = input$newactid,
-            destination = input$newactdest,
-            condition = "None"
-          )
-        ) |>
-          stats::na.omit() |>
-          dplyr::mutate_all(base::as.character) |>
-          dplyr::filter(
-            origin %in% reactval$activities$activity,
-            destination %in% reactval$activities$activity
-          )
-        
-        reactval$paths <- reactval$paths |>
-          dplyr::bind_rows(newpaths)
-        
-        shinyalert::shinyalert(
-          title = "New activity added",
-          text = "The new activity has been successfully added to the database.",
-          type = "success"
-        )
-      }
-    })
     
-    shiny::observeEvent(input$splitactivity, {
-      shiny::req(!base::is.null(activity_labels()))
-      
-      activities <- activity_labels()$activity
-      base::names(activities) <- activity_labels()$label
-      
-      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
-      
-      shiny::showModal(shiny::modalDialog(
-        title = "Split an activity",
-        shiny::selectInput(
-          ns("frominitact"), "Activity to split:",
-          choices = activities,
-          selected = NULL,
-          multiple = FALSE, width = "100%"
-        ),
-        shiny::fluidRow(
-          shiny::column(
-            5,
-            shiny::textInput(ns("tooriginactid"), "Into origin:", value = "", width = "100%"),
-            shiny::textInput(ns("tooriginactlab"), "With the label:", value = "", width = "100%"),
-            shiny::selectInput(
-              ns("toorigtype"), "Type:",
-              choices = types, selected = types[1],
-              multiple = FALSE, width = "100%"
-            )
-          ),
-          shiny::column(
-            2,
-            shiny::selectInput(
-              ns("condsplit"), "With condition:",
-              choices = c("None","Done","OK","Not OK"),
-              selected = "None",
-              multiple = FALSE, width = "100%"
-            )
-          ),
-          shiny::column(
-            5,
-            shiny::textInput(ns("todestactid"), "Into destination:", value = "", width = "100%"),
-            shiny::textInput(ns("todestactlab"), "With the label:", value = "", width = "100%"),
-            shiny::selectInput(
-              ns("todesttype"), "And the ype:",
-              choices = types, selected = types[1],
-              multiple = FALSE, width = "100%"
-            )
-          )
-        ),
-        footer = shiny::tagList(
-          shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("splitact"), "OK")
-        )
-      ))
-    })
     
-    shiny::observeEvent(input$splitact, {
-      
-      if (input$tooriginactid == "" | input$tooriginactlab == "" |
-          input$todestactid == "" | input$todestactlab == ""){
-        shinyalert::shinyalert(
-          title = "Missing ID or labels!",
-          text = "You must IDS and labels to all activities.",
-          type = "error"
-        )
-      } else if (input$tooriginactid %in% reactval$activities$activity |
-                 input$todestactid %in% reactval$activities$activity) {
-        shinyalert::shinyalert(
-          title = "Non unique ID!",
-          text = "At least one of the ID you gave to the activities is already assigned to another activity.",
-          type = "error"
-        )
-      } else {
-        shiny::removeModal()
-        
-        shiny::req(!base::is.null(activity_labels()))
-        selectedact <- activity_labels() |>
-          dplyr::filter(activity == input$frominitact) |>
-          dplyr::group_by(
-            activity, order, type, resource,
-            requirement, weigth,
-            time_space, level, social,
-            duration, start, end
-          ) |>
-          dplyr::summarise(outcomes = base::paste(outcome, collapse = " "))
-        
-        newactivities <- tibble::tibble(
-          activity = c(input$tooriginactid, input$todestactid),
-          order = selectedact$order[1],
-          type = c(input$toorigtype, input$todesttype)
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        neworiglabels <- tibble::tibble(
-          activity = input$tooriginactid,
-          language = base::unique(course_data()$languages$langiso),
-          label = input$tooriginactlab,
-          description = "",
-          lmsid = NA,
-          URL = NA
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        newdestlabels <- tibble::tibble(
-          activity = input$todestactid,
-          language = base::unique(course_data()$languages$langiso),
-          label = input$todestactlab,
-          description = "",
-          lmsid = NA,
-          URL = NA
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        newactattributes <- tibble::tibble(
-          activity = c(input$tooriginactid, input$todestactid),
-          outcomes = selectedact$outcomes[1],
-          resource = selectedact$resource[1],
-          requirement = selectedact$requirement[1],
-          weigth = selectedact$weigth[1],
-          time_space = selectedact$time_space[1],
-          level = selectedact$level[1],
-          social = selectedact$social[1],
-          duration = selectedact$duration[1],
-          start = selectedact$start[1],
-          end = selectedact$end[1]
-        ) |>
-          dplyr::mutate_all(base::as.character)
-        
-        reactval$activities <- reactval$activities |>
-          dplyr::filter(activity != input$frominitact) |>
-          dplyr::bind_rows(newactivities)
-        reactval$actlabels <- reactval$actlabels |>
-          dplyr::filter(activity != input$frominitact) |>
-          dplyr::bind_rows(neworiglabels) |>
-          dplyr::bind_rows(newdestlabels)
-        reactval$actattributes <- reactval$actattributes |>
-          dplyr::filter(activity != input$frominitact) |>
-          dplyr::bind_rows(newactattributes)
-        
-        allbefore <- reactval$paths |>
-          dplyr::filter(destination == input$frominitact) |>
-          dplyr::mutate(destination = input$tooriginactid)
-        
-        allafter <- reactval$paths |>
-          dplyr::filter(origin == input$frominitact) |>
-          dplyr::mutate(origin = input$todestactid)
-        
-        newpaths <- tibble::tibble(
-          origin = input$tooriginactid,
-          destination = input$todestactid,
-          condition = input$condsplit
-        ) |>
-          dplyr::bind_rows(allbefore) |>
-          dplyr::bind_rows(allafter) |>
-          stats::na.omit() |>
-          dplyr::mutate_all(base::as.character)
-        
-        reactval$paths <- reactval$paths |>
-          dplyr::filter(
-            origin != input$frominitact,
-            destination != input$frominitact
-          ) |>
-          dplyr::bind_rows(newpaths) |>
-          dplyr::mutate_all(base::as.character)
-        
-        shinyalert::shinyalert(
-          title = "Activity splitted",
-          text = "The activity has been successfully splitted in the database.",
-          type = "success"
-        )
-      }
-    })
+    # GENERATE PATHS ###########################################################
     
-    shiny::observeEvent(input$newpath, {
-      shiny::req(!base::is.null(activity_labels()))
-      
-      activities <- activity_labels()$activity
-      base::names(activities) <- activity_labels()$label
-      
-      shiny::showModal(shiny::modalDialog(
-        title = "Add or edit a path",
-        shiny::fluidRow(
-          shiny::column(
-            5,
-            shiny::selectInput(
-              ns("newpathorig"), "Origin:",
-              choices = activities,
-              selected = NULL,
-              multiple = FALSE, width = "100%"
-            )
-          ),
-          shiny::column(
-            5,
-            shiny::selectInput(
-              ns("newpathdest"), "Destination:",
-              choices = activities,
-              selected = NULL,
-              multiple = FALSE, width = "100%"
-            )
-          ),
-          shiny::column(
-            2,
-            shiny::selectInput(
-              ns("newpathcond"), "Condition:",
-              choices = c("None","Done","OK","Not OK"),
-              selected = "None",
-              multiple = FALSE, width = "100%"
-            )
-          )
-        ),
-        footer = shiny::tagList(
-          shiny::modalButton("Cancel"),
-          shiny::actionButton(ns("addpath"), "OK")
-        )
-      ))
-    })
     
-    shiny::observeEvent(input$addpath, {
-      shiny::removeModal()
-      
-      newpath <- tibble::tibble(
-        origin = input$newpathorig,
-        destination = input$newpathdest,
-        condition = input$newpathcond
-      )
-      
-      paths <- reactval$paths |>
-        dplyr::anti_join(newpath, by = c("origin","destination")) |>
-        dplyr::anti_join(dplyr::rename(
-          newpath, origin = destination,
-          destination = origin),
-          by = c("origin","destination")
-        ) |>
-        dplyr::bind_rows(newpath)
-      
-      reactval$paths <- paths
-      
-      shinyalert::shinyalert(
-        title = "Path added or edited",
-        text = "The path has been added or changed in the database.",
-        type = "success"
-      )
-    })
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     
@@ -2969,10 +3213,7 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
     # EXPORT ###################################################################
     # Save on disk or export
     
-    shiny::observeEvent(input$savepaths, {
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
-      
+    learning_journey <- shiny::reactive({
       outcomes <- reactval$outcomes |>
         dplyr::mutate(order = base::as.numeric(order)) |>
         dplyr::arrange(order)
@@ -2988,6 +3229,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           destination = base::as.character(destination)
         )
       
+      
+      
       if (base::nrow(connections) > 0){
         connections <- connections |>
           dplyr::mutate(findbidir = purrr::map2_chr(origin, destination, function(x,y){
@@ -2999,6 +3242,8 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
           dplyr::select(-findbidir)
       }
       
+      
+      
       outlabels <- reactval$outlabels |>
         dplyr::mutate(outcome = base::factor(outcome, levels = outcomelevels)) |>
         dplyr::arrange(language, outcome) |>
@@ -3008,93 +3253,139 @@ design_path_server <- function(id, filtered, tree, course_data, course_paths){
         dplyr::mutate(order = base::as.numeric(order)) |>
         dplyr::arrange(order)
       activitylevels <- activities$activity
-      paths <- reactval$paths |>
-        dplyr::mutate(
-          origin = base::factor(origin, levels = activitylevels),
-          destination = base::factor(destination, levels = activitylevels)
-        ) |>
-        dplyr::arrange(origin, destination) |>
-        dplyr::mutate(
-          origin = base::as.character(origin),
-          destination = base::as.character(destination)
-        )
-      
-      if (base::nrow(paths) > 0){
-        paths <- paths |>
-          dplyr::mutate(findbidir = purrr::map2_chr(origin, destination, function(x,y){
-            base::paste0(base::sort(c(x,y)), collapse = "_")
-          })) |>
-          dplyr::group_by(findbidir) |>
-          dplyr::sample_n(1) |>
-          dplyr::ungroup() |>
-          dplyr::select(-findbidir)
-      }
       
       actlabels <- reactval$actlabels |>
         dplyr::mutate(activity = base::factor(activity, levels = activitylevels)) |>
         dplyr::arrange(language, activity) |>
         dplyr::mutate(activity = base::as.character(activity))
-      actattributes <- reactval$actattributes |>
-        dplyr::mutate(activity = base::factor(activity, levels = activitylevels)) |>
-        dplyr::arrange(activity) |>
-        dplyr::mutate(activity = base::as.character(activity))
       
-      learning_journey <- base::list(
+      base::list(
         outcomes = outcomes,
         connections = connections,
         outlabels = outlabels,
         activities = activities,
-        paths = paths,
         actlabels = actlabels,
-        actattributes = actattributes,
         attributes = reactval$attributes,
+        languages = reactval$languages,
         students = reactval$students,
         interactions = reactval$interactions
       )
-      
-      quietly_write <- purrr::safely(writexl::write_xlsx)
-      check <- quietly_write(learning_journey, path = pathfile())
-      
-      if (!base::is.null(check$error)){
+    })
+    
+    
+    
+    shiny::observeEvent(input$savepaths, {
+      shiny::req(!base::is.na(pathfile()))
+      if (!base::is.null(input$uploadpath)){
         shinyalert::shinyalert(
-          "Not saved!", "The map could not been saved because the file is open in another application.",
+          "Not saved!", "You need to download the file if you uploaded it.",
           type = "error"
         )
       } else {
-        shinyalert::shinyalert(
-          "Saved!", "Your learning map and paths have been saved on disk.",
-          type = "success"
-        )
-      }
-    })
-    
-    shiny::observeEvent(input$openpaths, {
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
-      if (base::Sys.info()[1] == "Windows"){
-        base::shell.exec(pathfile())
-      } else {
-        base::system2(pathfile())
-      }
-    })
-    
-    shiny::observeEvent(input$openfolder, {
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
-      folder <- course_paths()$subfolders$paths
-      if (base::dir.exists(folder)){
-        if (.Platform['OS.type'] == "windows"){
-          shell.exec(folder)
+        quietly_write <- purrr::safely(writexl::write_xlsx)
+        check <- quietly_write(learning_journey(), path = pathfile())
+        if (!base::is.null(check$error)){
+          shinyalert::shinyalert(
+            "Not saved!", "The map could not been saved because the file is open in another application.",
+            type = "error"
+          )
         } else {
-          system2("open", folder)
+          shinyalert::shinyalert(
+            "Saved!", "Your learning map and paths have been saved on disk.",
+            type = "success"
+          )
         }
       }
     })
     
-    shiny::observeEvent(input$exportpaths, {
-      shiny::req(base::length(course_paths()) == 2)
-      shiny::req(base::length(tree()) == 4)
+    
+    
+    shiny::observeEvent(input$openpaths, {
+      shiny::req(!base::is.na(pathfile()))
+      if (!base::is.null(input$uploadpath)){
+        shinyalert::shinyalert(
+          "Sorry!", "You cannot open the file you uploaded.",
+          type = "error"
+        )
+      } else if (base::is.null(course_paths)){
+        shinyalert::shinyalert(
+          "Sorry!", "You cannot open the default file. Please download it.",
+          type = "error"
+        )
+      } else if (base::length(course_paths()) == 2) {
+        folder <- course_paths()$subfolders$paths
+        if (base::file.exists(pathfile())){
+          if (base::Sys.info()[1] == "Windows"){
+            base::shell.exec(pathfile())
+          } else {
+            base::system2(pathfile())
+          }
+        } else {
+          shinyalert::shinyalert(
+            "Sorry!", "The file does not appear do exist.",
+            type = "error"
+          )
+        }
+      } else {
+        shinyalert::shinyalert(
+          "Sorry!", "You cannot open the default file. Please download it.",
+          type = "error"
+        )
+      }
     })
+    
+    
+    
+    shiny::observeEvent(input$openfolder, {
+      shiny::req(!base::is.na(pathfile()))
+      if (!base::is.null(input$uploadpath)){
+        shinyalert::shinyalert(
+          "Sorry!", "You cannot open the folder of a file you uploaded.",
+          type = "error"
+        )
+      } else if (base::is.null(course_paths)) {
+        shinyalert::shinyalert(
+          "Sorry!", "You cannot open the default folder.",
+          type = "error"
+        )
+      } else if (base::length(course_paths()) == 2) {
+        folder <- course_paths()$subfolders$paths
+        if (base::dir.exists(folder)){
+          if (.Platform['OS.type'] == "windows"){
+            shell.exec(folder)
+          } else {
+            system2("open", folder)
+          }
+        } else {
+          shinyalert::shinyalert(
+            "Sorry!", "The folder does not appear do exist.",
+            type = "error"
+          )
+        }
+      } else {
+        shinyalert::shinyalert(
+          "Sorry!", "You cannot open the default folder.",
+          type = "error"
+        )
+      }
+    })
+    
+    
+    
+    shiny::observeEvent(input$exportpaths, {
+      shiny::req(!base::is.na(pathfile()))
+    })
+    
+    
+    
+    output$downloadpath <- shiny::downloadHandler(
+      filename = function() {
+        base::paste0("course_map", ".xlsx")
+      },
+      content = function(file) {
+        writexl::write_xlsx(learning_journey(), path = file)
+      }
+    )
     
     
   })
