@@ -1,4 +1,4 @@
-#' @name selection_server
+#' @name select_activity_server
 #' @title Select dynamically from a vector
 #' @author Nicolas Mangin
 #' @description Module facilitating the selection of a specific value in a vector by cycling through elements of a vector.
@@ -19,7 +19,7 @@
 
 
 
-selection_server <- function(id, selection_base){
+select_activity_server <- function(id, selection_base){
   ns <- shiny::NS(id)
   shiny::moduleServer(
     id,

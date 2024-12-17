@@ -4,14 +4,14 @@
 \alias{design_path_server}
 \title{Design learning paths}
 \usage{
-design_path_server(id, tree = NULL, course_paths = NULL)
+design_path_server(id, course_paths = NULL, tree = NULL)
 }
 \arguments{
 \item{id}{Character. ID of the module to connect the user interface to the appropriate server side.}
 
-\item{tree}{Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR}
-
 \item{course_paths}{Reactive. Function containing a list of paths to the different folders and databases on local disk.}
+
+\item{tree}{Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR}
 }
 \value{
 Save the new or modified page in the folder "2_documents/main_language/".

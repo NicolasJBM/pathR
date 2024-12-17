@@ -1,4 +1,4 @@
-#' @name selection_ui
+#' @name select_activity_ui
 #' @title Select from a vector
 #' @author Nicolas Mangin
 #' @description Module facilitating the selection of a specific value in a vector by cycling through elements of a vector.
@@ -16,7 +16,7 @@
 
 
 
-selection_ui <- function(id, selection_label = "Document:"){
+select_activity_ui <- function(id, selection_label = "Document:"){
   ns <- shiny::NS(id)
   base::list(
     shiny::fluidRow(

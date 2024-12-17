@@ -46,41 +46,7 @@ design_path_ui <- function(id){
     ),
     
     # Top menu buttons (common to all tabs)
-    shiny::fluidRow(
-      shiny::column(3, shiny::uiOutput(ns("slctlanguage"))),
-      shiny::column(3, shiny::fileInput(ns("uploadpath"), label = NULL, accept = ".xlsx", width = "100%")),
-      shiny::column(1, shiny::actionButton(
-        ns("loadpath"), "Reload",
-        icon = shiny::icon("upload"),
-        style = "width:100%;color:#FFFFFF;background-color:#003366;"
-      )),
-      shiny::column(1, shiny::actionButton(
-        ns("savepaths"), "Save",
-        icon = shiny::icon("floppy-disk"),
-        style = "width:100%;color:#FFFFFF;background-color:#006633;"
-      )),
-      shiny::column(1, shiny::actionButton(
-        ns("openpaths"), "Open",
-        icon = shiny::icon("file-excel"),
-        style = "width:100%;color:#FFFFFF;background-color:#000099;"
-      )),
-      shiny::column(1, shiny::actionButton(
-        ns("openfolder"), "Folder",
-        icon = shiny::icon("folder-open"),
-        style = "width:100%;color:#FFFFFF;background-color:#660099;"
-      )),
-      shiny::column(1, shiny::actionButton(
-        ns("exportpaths"), "Export",
-        icon = shiny::icon("file-export"),
-        style = "width:100%;color:#FFFFFF;background-color:#990066;"
-      )),
-      shiny::column(
-        1,
-        shiny::downloadButton(ns("downloadpath"), "Download")
-      )
-    ),
-    
-    
+    shiny::uiOutput(ns("topmenu")),
     
     # Outcome tab
     shinydashboard::tabBox(
@@ -215,7 +181,7 @@ design_path_ui <- function(id){
               shiny::column(
                 6,
                 shinyWidgets::dropdown(
-                  pathR::selection_ui(ns("slctact"), "Activity"),
+                  pathR::select_activity_ui(ns("slctact"), "Activity"),
                   shiny::uiOutput(ns("editattributes")),
                   shiny::actionButton(ns("updateactattr"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
                   size = "lg", style = "unite", icon = icon("id-card"),

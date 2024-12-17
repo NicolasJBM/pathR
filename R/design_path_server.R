@@ -3,8 +3,8 @@
 #' @author Nicolas Mangin
 #' @description Module facilitating the design and visualization or a complete learning experience.
 #' @param id Character. ID of the module to connect the user interface to the appropriate server side.
-#' @param tree Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR
 #' @param course_paths Reactive. Function containing a list of paths to the different folders and databases on local disk.
+#' @param tree Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR
 #' @return Save the new or modified page in the folder "2_documents/main_language/".
 #' @importFrom DT renderDataTable
 #' @importFrom DiagrammeR add_edge
@@ -72,8 +72,6 @@
 #' @importFrom lubridate as_date
 #' @importFrom lubridate hour
 #' @importFrom lubridate week
-#' @importFrom pathR create_path
-#' @importFrom pathR selection_server
 #' @importFrom purrr map
 #' @importFrom purrr map2_chr
 #' @importFrom purrr map_chr
@@ -138,7 +136,7 @@
 
 
 
-design_path_server <- function(id, tree = NULL, course_paths = NULL){
+design_path_server <- function(id, course_paths = NULL, tree = NULL){
   ns <- shiny::NS(id)
   shiny::moduleServer(id, function(input, output, session) {
     
@@ -238,161 +236,107 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
     
     
     
-    # DATA #####################################################################
+    # INPUT METHOD #############################################################
+    
+    sourcetype <- shiny::reactive({
+      if (base::is.null(course_paths) | base::is.null(tree)){
+        "external"
+      } else {
+        "internal"
+      }
+    })
     
     
     
+    output$topmenu <- shiny::renderUI({
+      shiny::req(!base::is.null(sourcetype()))
+      
+      if (sourcetype() == "internal"){
+        
+        shiny::fluidRow(
+          shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
+          shiny::column(2, shiny::actionButton(
+            ns("loadpath"), "Reload",
+            icon = shiny::icon("upload"),
+            style = "width:100%;color:#FFFFFF;background-color:#003366;"
+          )),
+          shiny::column(2, shiny::actionButton(
+            ns("savepaths"), "Save",
+            icon = shiny::icon("floppy-disk"),
+            style = "width:100%;color:#FFFFFF;background-color:#006633;"
+          )),
+          shiny::column(2, shiny::actionButton(
+            ns("openpaths"), "Open",
+            icon = shiny::icon("file-excel"),
+            style = "width:100%;color:#FFFFFF;background-color:#000099;"
+          )),
+          shiny::column(2, shiny::actionButton(
+            ns("openfolder"), "Folder",
+            icon = shiny::icon("folder-open"),
+            style = "width:100%;color:#FFFFFF;background-color:#660099;"
+          ))
+        )
+        
+      } else {
+        
+        shiny::fluidRow(
+          shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
+          shiny::column(2, shiny::fileInput(ns("uploadpath"), label = NULL, accept = ".xlsx", width = "100%")),
+          shiny::column(2, shiny::actionButton(
+            ns("loadpath"), "Reload",
+            icon = shiny::icon("upload"),
+            style = "width:100%;color:#FFFFFF;background-color:#003366;"
+          )),
+          shiny::column(2, shiny::actionButton(
+            ns("savepaths"), "Save",
+            icon = shiny::icon("floppy-disk"),
+            style = "width:100%;color:#FFFFFF;background-color:#006633;"
+          )),
+          shiny::column(2, shiny::downloadButton(ns("downloadpath"), "Download"))
+        )
+        
+      }
+    })
+    
+     
+     # DATA #####################################################################
+     
     reactval <- shiny::reactiveValues()
+    
+    
     
     pathfile <- shiny::reactive({
       input$loadpath
-      if (base::is.null(course_paths)){
-        "www/coursemap.xlsx"
-      } else if (base::length(course_paths()) == 2) {
-        shiny::req(base::length(tree()) == 4)
-        base::paste0(
-          course_paths()$subfolders$paths, "/",
-          stringr::str_replace(tree()$course$tree[[1]], "RData$", "xlsx")
-        )
+      shiny::req(!base::is.null(sourcetype()))
+      if (sourcetype() == "internal"){
+        if (base::length(course_paths()) == 2 & 
+            shiny::req(base::length(tree()) == 4)) {
+          base::paste0(
+            course_paths()$subfolders$paths, "/",
+            stringr::str_replace(tree()$course$tree[[1]], "RData$", "xlsx")
+          )
+        } else {
+          NA
+        }
       } else {
-        NA
+        if (!base::is.null(input$uploadpath)) {
+          input$uploadpath$datapath
+        } else {
+          NA
+        }
       }
     })
     
     
     
     shiny::observe({
+      shiny::req(!base::is.null(sourcetype()))
       shiny::req(!base::is.na(pathfile()))
       
-      if (!base::is.null(input$uploadpath)) {
-        
-        pathfile <- input$uploadpath$datapath
-        
-      } else {
-        
-        pathfile <- pathfile()
-        
-        if (!base::file.exists(pathfile)){
-          
-          reactval$outcomes <- tibble::tibble(
-            outcome = base::as.character(NA),
-            order = base::as.character(NA),
-            type = base::as.character(NA),
-            color = base::as.character(NA)
-          )
-          
-          reactval$connections <- tibble::tibble(
-            origin = base::as.character(NA),
-            destination = base::as.character(NA)
-          )
-          
-          reactval$outlabels <- tibble::tibble(
-            outcome = base::as.character(NA),
-            language = base::as.character(NA),
-            label = base::as.character(NA),
-            description = base::as.character(NA),
-            lmsid = base::as.character(NA),
-            URL = base::as.character(NA)
-          )
-          
-          reactval$activities <- tibble::tibble(
-            activity = base::as.character(NA),
-            order = base::as.character(NA),
-            type = base::as.character(NA),
-            outcomes = base::as.character(NA),
-            subgroup = base::as.character(NA),
-            requirement = base::as.character(NA),
-            weigth = base::as.character(NA),
-            level = base::as.character(NA),
-            time_space = base::as.character(NA),
-            social = base::as.character(NA),
-            duration = base::as.character(NA),
-            start = base::as.character(NA),
-            end = base::as.character(NA)
-          )
-          
-          reactval$actlabels <- tibble::tibble(
-            activity = base::as.character(NA),
-            language = base::as.character(NA),
-            label = base::as.character(NA),
-            description = base::as.character(NA),
-            lmsid = base::as.character(NA),
-            URL = base::as.character(NA)
-          )
-          
-          reactval$attributes <- tibble::tribble(
-            ~"attribute", ~"value", ~"language", ~"label", ~"icon",
-            "level", "NOV", "US", "Novice", "child-reaching",
-            "level", "APP", "US", "Apprentice", "user",
-            "level", "PRO", "US", "Professional", "user-tie",
-            "level", "MAS", "US", "Master", "user-ninja",
-            "level", "EXP", "US", "Expert", "user-doctor",
-            "social", "IND", "US", "Individual", "user",
-            "social", "TM", "US", "Team", "user-plus",
-            "social", "GP", "US", "Group", "people-group",
-            "time_space", "AOL", "US", "Asynchronous", "house-laptop",
-            "time_space", "SOL", "US", "Synchronous online", "house-signal",
-            "time_space", "SOS", "US", "Synchronous on site", "school",
-            "requirement", "OPT", "US", "Optional", "circle-question",
-            "requirement", "REC", "US", "Recommended", "circle-xmark",
-            "requirement", "NEC", "US", "Necessary", "circle-exclamation",
-            "level", "NOV", "FR", "Novice", "child-reaching",
-            "level", "APP", "FR", "Apprenti", "user",
-            "level", "PRO", "FR", "Professionnel", "user-tie",
-            "level", "MAS", "FR", "Maitre", "user-ninja",
-            "level", "EXP", "FR", "Expert", "user-doctor",
-            "social", "IND", "FR", "Individuel", "user",
-            "social", "TM", "FR", "Equipe", "user-plus",
-            "social", "GP", "FR", "Groupe", "people-group",
-            "time_space", "AOL", "FR", "Asynchrone", "house-laptop",
-            "time_space", "SOL", "FR", "Synchrone en ligne", "house-signal",
-            "time_space", "SOS", "FR", "Synchrone sur site", "school",
-            "requirement", "OPT", "FR", "Facultatif", "circle-question",
-            "requirement", "REC", "FR", "Recommande", "circle-xmark",
-            "requirement", "NEC", "FR", "Necessaire", "circle-exclamation"
-          )
-          
-          reactval$languages <- tibble::tribble(
-            ~langiso, ~language, ~flag,
-            "US","English","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/gb.svg",
-            "FR","French","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/fr.svg"
-          )
-          
-          reactval$students <- tibble::tibble(
-            userid = base::as.character(NA),
-            studentid = base::as.character(NA),
-            lastname = base::as.character(NA),
-            firstname = base::as.character(NA),
-            fullname = base::as.character(NA),
-            email = base::as.character(NA)
-          )
-          
-          reactval$interactions <- tibble::tibble(
-            log = base::as.character(NA),
-            date = base::as.Date(NA),
-            subject = base::as.character(NA),
-            action = base::as.character(NA),
-            object = base::as.character(NA),
-            context = base::as.character(NA)
-          )
-          
-          writexl::write_xlsx(
-            base::list(
-              outcomes = reactval$outcomes,
-              connections = reactval$connections,
-              outlabels = reactval$outlabels,
-              activities = reactval$activities,
-              actlabels = reactval$actlabels,
-              attributes = reactval$attributes,
-              languages = reactval$languages,
-              students = reactval$students,
-              interactions = reactval$interactions
-            ),
-            path = pathfile
-          )
-        }
-        
-        
+      pathfile <- pathfile()
+      
+      if (sourcetype() == "internal" & !base::file.exists(pathfile)){
+        writexl::write_xlsx(pathR::create_database(), path = pathfile)
       }
       
       reactval$outcomes <- readxl::read_excel(pathfile, sheet = "outcomes", col_types = "text")
@@ -1605,7 +1549,7 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
       actchoices
     })
     
-    selected_activity <- pathR::selection_server("slctact", list_of_activities)
+    selected_activity <- pathR::select_activity_server("slctact", list_of_activities)
     
     output$editattributes <- shiny::renderUI({
       shiny::req(!base::is.null(activitylist()))
@@ -3231,6 +3175,7 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
     # Save on disk or export
     
     learning_journey <- shiny::reactive({
+      
       outcomes <- reactval$outcomes |>
         dplyr::mutate(order = base::as.numeric(order)) |>
         dplyr::arrange(order)
@@ -3246,8 +3191,6 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
           destination = base::as.character(destination)
         )
       
-      
-      
       if (base::nrow(connections) > 0){
         connections <- connections |>
           dplyr::mutate(findbidir = purrr::map2_chr(origin, destination, function(x,y){
@@ -3258,8 +3201,6 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
           dplyr::ungroup() |>
           dplyr::select(-findbidir)
       }
-      
-      
       
       outlabels <- reactval$outlabels |>
         dplyr::mutate(outcome = base::factor(outcome, levels = outcomelevels)) |>
@@ -3293,43 +3234,29 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
     
     shiny::observeEvent(input$savepaths, {
       shiny::req(!base::is.na(pathfile()))
-      if (!base::is.null(input$uploadpath)){
+      quietly_write <- purrr::safely(writexl::write_xlsx)
+      if (sourcetype() == "internal"){
+        check <- quietly_write(learning_journey(), path = pathfile())
+      } else {
+        check <- quietly_write(learning_journey(), path = "www/coursemap.xlsx")
+      }
+      if (!base::is.null(check$error)){
         shinyalert::shinyalert(
-          "Not saved!", "You need to download the file if you uploaded it.",
+          "Not saved!", "The map could not been saved probably because the file is open in another application.",
           type = "error"
         )
       } else {
-        quietly_write <- purrr::safely(writexl::write_xlsx)
-        check <- quietly_write(learning_journey(), path = pathfile())
-        if (!base::is.null(check$error)){
-          shinyalert::shinyalert(
-            "Not saved!", "The map could not been saved because the file is open in another application.",
-            type = "error"
-          )
-        } else {
-          shinyalert::shinyalert(
-            "Saved!", "Your learning map and paths have been saved on disk.",
-            type = "success"
-          )
-        }
+        shinyalert::shinyalert(
+          "Saved!", "Your learning map and paths have been saved on disk.",
+          type = "success"
+        )
       }
     })
     
     
     
     shiny::observeEvent(input$openpaths, {
-      shiny::req(!base::is.na(pathfile()))
-      if (!base::is.null(input$uploadpath)){
-        shinyalert::shinyalert(
-          "Sorry!", "You cannot open the file you uploaded.",
-          type = "error"
-        )
-      } else if (base::is.null(course_paths)){
-        shinyalert::shinyalert(
-          "Sorry!", "You cannot open the default file. Please download it.",
-          type = "error"
-        )
-      } else if (base::length(course_paths()) == 2) {
+      if (base::length(course_paths()) == 2) {
         folder <- course_paths()$subfolders$paths
         if (base::file.exists(pathfile())){
           if (base::Sys.info()[1] == "Windows"){
@@ -3339,13 +3266,13 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
           }
         } else {
           shinyalert::shinyalert(
-            "Sorry!", "The file does not appear do exist.",
+            "Sorry!", "The file does not exist.",
             type = "error"
           )
         }
       } else {
         shinyalert::shinyalert(
-          "Sorry!", "You cannot open the default file. Please download it.",
+          "Sorry!", "You need to load a course and a tree first.",
           type = "error"
         )
       }
@@ -3354,18 +3281,7 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
     
     
     shiny::observeEvent(input$openfolder, {
-      shiny::req(!base::is.na(pathfile()))
-      if (!base::is.null(input$uploadpath)){
-        shinyalert::shinyalert(
-          "Sorry!", "You cannot open the folder of a file you uploaded.",
-          type = "error"
-        )
-      } else if (base::is.null(course_paths)) {
-        shinyalert::shinyalert(
-          "Sorry!", "You cannot open the default folder.",
-          type = "error"
-        )
-      } else if (base::length(course_paths()) == 2) {
+      if (base::length(course_paths()) == 2) {
         folder <- course_paths()$subfolders$paths
         if (base::dir.exists(folder)){
           if (.Platform['OS.type'] == "windows"){
@@ -3381,16 +3297,10 @@ design_path_server <- function(id, tree = NULL, course_paths = NULL){
         }
       } else {
         shinyalert::shinyalert(
-          "Sorry!", "You cannot open the default folder.",
+          "Sorry!", "You need to load a course and a tree first.",
           type = "error"
         )
       }
-    })
-    
-    
-    
-    shiny::observeEvent(input$exportpaths, {
-      shiny::req(!base::is.na(pathfile()))
     })
     
     
