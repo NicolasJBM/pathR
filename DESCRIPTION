@@ -32,4 +32,7 @@ Imports:
     ggplot2,
     forcats,
     lubridate,
-    DT
+    DT,
+    rvest,
+    furrr,
+    future
