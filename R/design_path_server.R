@@ -2386,7 +2386,7 @@ design_path_server <- function(id, course_paths = NULL, tree = NULL){
             fontcolor = "black",
             penwidth = nodes$penwidth,
             tooltip = nodes$tooltip,
-            URL = nodes$URL,
+            URL = base::paste0(nodes$URL,'/"target="_blank'),
             peripheries = nodes$peripheries,
             activity = nodes$activity
           )
