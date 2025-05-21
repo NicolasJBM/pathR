@@ -244,35 +244,6 @@ design_path_ui <- function(id){
         shiny::uiOutput(ns("design_valueboxes")),
         shiny::plotOutput(ns("workload_density")),
         shiny::plotOutput(ns("outcomes_heatmap")) 
-      ),
-      
-      
-      
-      # Interactions tab
-      shiny::tabPanel(
-        title = shiny::span(
-          shiny::icon("keyboard"), "Interactions",
-          title = "Logs grom the learning management system."
-        ),
-        shiny::fluidPage(
-          style = "font-size: 75%;"#,
-          #shiny::column(12, DT::dataTableOutput(ns("displaylogs")))
-        )
-      ),
-      
-      
-      
-      # Experiences tab
-      shiny::tabPanel(
-        title = shiny::span(
-          shiny::icon("heart-pulse"), "Experiences",
-          title = "Visualize students' interactions with the learning materials."
-        )#,
-        #shiny::uiOutput(ns("log_selections")),
-        #shiny::plotOutput(ns("interaction_count")),
-        #shiny::uiOutput(ns("weekslider")),
-        #shiny::uiOutput(ns("lognetwork")),
-        #shiny::plotOutput(ns("learning_profiles"))
       )
     )
   )
