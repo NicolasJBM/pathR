@@ -3,8 +3,9 @@
 #' @author Nicolas Mangin
 #' @description Module facilitating the design and visualization or a complete learning experience.
 #' @param id Character. ID of the module to connect the user interface to the appropriate server side.
+#' @param intake Reactive. Function containing all information about the selected intake.
+#' @param course_data List. description
 #' @param course_paths Reactive. Function containing a list of paths to the different folders and databases on local disk.
-#' @param tree Reactive. Function containing a list of documents as a classification tree compatible with jsTreeR
 #' @return Save the new or modified page in the folder "2_documents/main_language/".
 #' @importFrom DT renderDataTable
 #' @importFrom DiagrammeR add_edge
@@ -136,7 +137,7 @@
 
 
 
-design_path_server <- function(id, course_paths = NULL, tree = NULL){
+design_path_server <- function(id, intake = NULL, course_data = NULL, course_paths = NULL){
   ns <- shiny::NS(id)
   shiny::moduleServer(id, function(input, output, session) {
     
@@ -239,14 +240,13 @@ design_path_server <- function(id, course_paths = NULL, tree = NULL){
     # INPUT METHOD #############################################################
     
     sourcetype <- shiny::reactive({
-      if (base::is.null(course_paths) | base::is.null(tree)){
+      shiny::req(!base::is.null(intake))
+      if (base::is.null(course_data) | base::is.null(course_paths)){
         "external"
       } else {
         "internal"
       }
     })
-    
-    
     
     output$topmenu <- shiny::renderUI({
       shiny::req(!base::is.null(sourcetype()))
@@ -303,21 +303,14 @@ design_path_server <- function(id, course_paths = NULL, tree = NULL){
      
     reactval <- shiny::reactiveValues()
     
-    
-    
     pathfile <- shiny::reactive({
       input$loadpath
       shiny::req(!base::is.null(sourcetype()))
       if (sourcetype() == "internal"){
-        if (base::length(course_paths()) == 2 & 
-            shiny::req(base::length(tree()) == 4)) {
-          base::paste0(
-            course_paths()$subfolders$paths, "/",
-            stringr::str_replace(tree()$course$tree[[1]], "RData$", "xlsx")
-          )
-        } else {
-          NA
-        }
+        base::paste0(
+          course_paths()$subfolders$paths, "/",
+          intake()$intake$path[1], ".xlsx"
+        )
       } else {
         if (!base::is.null(input$uploadpath)) {
           input$uploadpath$datapath
@@ -327,27 +320,30 @@ design_path_server <- function(id, course_paths = NULL, tree = NULL){
       }
     })
     
-    
-    
     shiny::observe({
+      
       shiny::req(!base::is.null(sourcetype()))
       shiny::req(!base::is.na(pathfile()))
       
-      pathfile <- pathfile()
-      
-      if (sourcetype() == "internal" & !base::file.exists(pathfile)){
-        writexl::write_xlsx(pathR::create_database(), path = pathfile)
+      if (sourcetype() == "internal" & !base::file.exists(pathfile())){
+        writexl::write_xlsx(pathR::create_database(), path = pathfile())
       }
       
-      reactval$outcomes <- readxl::read_excel(pathfile, sheet = "outcomes", col_types = "text")
-      reactval$connections <- readxl::read_excel(pathfile, sheet = "connections", col_types = "text")
-      reactval$outlabels <- readxl::read_excel(pathfile, sheet = "outlabels", col_types = "text")
-      reactval$activities <- readxl::read_excel(pathfile, sheet = "activities", col_types = "text")
-      reactval$actlabels <- readxl::read_excel(pathfile, sheet = "actlabels", col_types = "text")
-      reactval$attributes <- readxl::read_excel(pathfile, sheet = "attributes", col_types = "text")
-      reactval$languages <- readxl::read_excel(pathfile, sheet = "languages", col_types = "text")
-      reactval$students <- readxl::read_excel(pathfile, sheet = "students", col_types = "text")
-      reactval$interactions <- readxl::read_excel(pathfile, sheet = "interactions", col_types = c("text","date","text","text","text","text"))
+      shiny::req(base::file.exists(pathfile()))
+      
+      reactval$outcomes <- readxl::read_excel(pathfile(), sheet = "outcomes", col_types = "text")
+      reactval$connections <- readxl::read_excel(pathfile(), sheet = "connections", col_types = "text")
+      reactval$outlabels <- readxl::read_excel(pathfile(), sheet = "outlabels", col_types = "text")
+      reactval$activities <- readxl::read_excel(pathfile(), sheet = "activities", col_types = "text")
+      reactval$actlabels <- readxl::read_excel(pathfile(), sheet = "actlabels", col_types = "text")
+      reactval$attributes <- readxl::read_excel(pathfile(), sheet = "attributes", col_types = "text")
+      
+      if (sourcetype() == "internal"){
+        reactval$languages <- course_data()$languages
+      } else {
+        reactval$languages <- readxl::read_excel(pathfile(), sheet = "languages", col_types = "text")
+      }
+      
       
       if (base::nrow(reactval$outcomes) > 1) {
         shinyalert::shinyalert(

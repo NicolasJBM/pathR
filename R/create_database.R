@@ -96,32 +96,6 @@ create_database <- function(){
     "FR","French","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/fr.svg"
   )
   
-  students <- tibble::tibble(
-    userid = base::as.character(NA),
-    studentid = base::as.character(NA),
-    lastname = base::as.character(NA),
-    firstname = base::as.character(NA),
-    fullname = base::as.character(NA),
-    email = base::as.character(NA)
-  )
-  
-  interactions <- tibble::tibble(
-    log = base::as.character(NA),
-    date = base::as.Date(NA),
-    subject = base::as.character(NA),
-    action = base::as.character(NA),
-    object = base::as.character(NA),
-    context = base::as.character(NA)
-  )
-  
-  report <- tibble::tibble(
-    report = base::as.character(NA),
-    date = base::as.Date(NA),
-    subject = base::as.character(NA),
-    object = base::as.character(NA),
-    status = base::as.character(NA)
-  )
-  
   base::list(
     outcomes = outcomes,
     connections = connections,
@@ -129,9 +103,6 @@ create_database <- function(){
     activities = activities,
     actlabels = actlabels,
     attributes = attributes,
-    languages = languages,
-    students = students,
-    interactions = interactions,
-    report = report
+    languages = languages
   )
 }
