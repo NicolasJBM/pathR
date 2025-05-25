@@ -344,14 +344,6 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         reactval$languages <- readxl::read_excel(pathfile(), sheet = "languages", col_types = "text")
       }
       
-      
-      if (base::nrow(reactval$outcomes) > 1) {
-        shinyalert::shinyalert(
-          "Map loaded",
-          "The map and data about the learning experiences have been loaded.",
-          type = "success"
-        )
-      }
     })
     
     
