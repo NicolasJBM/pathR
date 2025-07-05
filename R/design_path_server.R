@@ -11,6 +11,7 @@
 #' @importFrom DiagrammeR add_edge
 #' @importFrom DiagrammeR add_node
 #' @importFrom DiagrammeR create_graph
+#' @importFrom DiagrammeR renderGrViz
 #' @importFrom DiagrammeR render_graph
 #' @importFrom DiagrammeR to_igraph
 #' @importFrom dplyr all_of
@@ -73,6 +74,9 @@
 #' @importFrom lubridate as_date
 #' @importFrom lubridate hour
 #' @importFrom lubridate week
+#' @importFrom pathR create_database
+#' @importFrom pathR create_path
+#' @importFrom pathR select_activity_server
 #' @importFrom purrr map
 #' @importFrom purrr map2_chr
 #' @importFrom purrr map_chr
@@ -84,11 +88,15 @@
 #' @importFrom rhandsontable hot_to_r
 #' @importFrom rhandsontable renderRHandsontable
 #' @importFrom rhandsontable rhandsontable
+#' @importFrom shiny HTML
 #' @importFrom shiny NS
 #' @importFrom shiny actionButton
 #' @importFrom shiny column
+#' @importFrom shiny div
+#' @importFrom shiny downloadButton
 #' @importFrom shiny downloadHandler
 #' @importFrom shiny eventReactive
+#' @importFrom shiny fileInput
 #' @importFrom shiny fluidRow
 #' @importFrom shiny h2
 #' @importFrom shiny icon
@@ -112,6 +120,7 @@
 #' @importFrom shiny tagList
 #' @importFrom shiny textAreaInput
 #' @importFrom shiny textInput
+#' @importFrom shiny uiOutput
 #' @importFrom shiny withProgress
 #' @importFrom shinyWidgets airDatepickerInput
 #' @importFrom shinyWidgets colorPickr
@@ -122,11 +131,9 @@
 #' @importFrom shinyalert shinyalert
 #' @importFrom shinydashboard valueBox
 #' @importFrom stringr str_remove_all
-#' @importFrom stringr str_replace
 #' @importFrom stringr str_replace_all
 #' @importFrom stringr str_split
 #' @importFrom tibble tibble
-#' @importFrom tibble tribble
 #' @importFrom tidyr complete
 #' @importFrom tidyr nest
 #' @importFrom tidyr pivot_longer
@@ -1363,7 +1370,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         shiny::incProgress(1/3)
         outcome_graph$nodes_df$x <- xaxis
         outcome_graph$nodes_df$y <- yaxis
-        graph <- DiagrammeR::render_graph(
+        outcomegraph <- DiagrammeR::render_graph(
           outcome_graph,
           width = "1250px",
           height = "650px",
@@ -1372,7 +1379,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         shiny::incProgress(1/3)
       })
       
-      graph
+      shiny::div(
+        outcomegraph,
+        class = 'outcomegraph',
+        shiny::tags$script(shiny::HTML('panzoom($(".outcomegraph").get(0))'))
+      )
     })
     
     
@@ -2480,7 +2491,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         activity_graph$nodes_df$y <- yaxis
         
         shiny::incProgress(1/5)
-        graph <- DiagrammeR::render_graph(
+        activitygraph <- DiagrammeR::render_graph(
           activity_graph,
           width = "1250px",
           height = "650px",
@@ -2489,7 +2500,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         shiny::incProgress(1/5)
       })
       
-      graph
+      shiny::div(
+        activitygraph,
+        class = 'activitygraph',
+        shiny::tags$script(shiny::HTML('panzoom($(".activitygraph").get(0))'))
+      )
     })
     
     output$activitytable <- DT::renderDataTable({
