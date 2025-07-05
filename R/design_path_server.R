@@ -1532,8 +1532,16 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     # Edit the attributes common to all languages.
     list_of_activities <- shiny::reactive({
       shiny::req(!base::is.null(activitylist()))
-      actchoices <- activitylist()$activity
-      base::names(actchoices) <- activitylist()$label
+      if (!base::is.null(input$slctegooutcome)){
+        preselection <- reactval$activities |>
+          dplyr::filter(outcomes %in% input$slctegooutcome)
+      } else {
+        preselection <- reactval$activities
+      }
+      preselectedact <- activitylist() |>
+        dplyr::filter(activity %in% base::unique(preselection$activity))
+      actchoices <- preselectedact$activity
+      base::names(actchoices) <- preselectedact$label
       actchoices
     })
     
@@ -1572,7 +1580,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       
       attrchoices <- reactval$attributes |>
         dplyr::filter(language == input$slctlang) |>
-        dplyr::mutate(label = base::paste0("<i class='fa fa-",icon,"'> | ",value,"</i>")) |>
+        dplyr::mutate(label = base::paste0("<i class='fa fa-",icon,"'> | ",label,"</i>")) |>
         dplyr::select(attribute, label, value)
       
       tmp <- attrchoices |>
@@ -1778,12 +1786,6 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         dplyr::bind_rows(update_activity)
       
       reactval$activities <- activities
-      
-      shinyalert::shinyalert(
-        "Activity attributes updated",
-        "The attributes of this activity have been updated. Refresh the map to see the change and save the file to keep the changes.",
-        type = "success"
-      )
     })
     
     
@@ -2153,11 +2155,6 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       )
     })
     
-    
-    
-    
-    
-    # PATH GENERATION ##########################################################
     
     
     
@@ -2556,7 +2553,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
           label = forcats::fct_reorder(label, order, base::mean)
         )
       
-      activity_labels() |>
+      prepactivities <- activity_labels() |>
         dplyr::mutate(
           order = base::as.numeric(order),
           label = stringr::str_replace_all(label, "_", " "),
@@ -2567,7 +2564,14 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         tidyr::unnest(object) |>
         dplyr::mutate(outcome = stringr::str_split(outcomes, pattern = " ")) |>
         tidyr::unnest(outcome) |>
-        dplyr::left_join(dplyr::select(outcomes, outcome, outcomelab = label), by = "outcome") |>
+        dplyr::left_join(dplyr::select(outcomes, outcome, outcomelab = label), by = "outcome")
+      
+      if (!base::is.null(input$slctegooutcome)){
+        prepactivities <- prepactivities |>
+          dplyr::filter(outcome %in% input$slctegooutcome)
+      }
+      
+      prepactivities |>
         dplyr::select(
           object, activity, activitylab = label, outcome = outcomelab, outcomecolor = color,
           type, requirement, level, time_space, social, duration, start, end
@@ -2678,6 +2682,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
           time_space %in% input$desfiltts,
           social %in% input$desfiltsoc
         )
+      
       shiny::req(!base::is.null(input$desslctperiod))
       shiny::req(!base::is.null(input$desslctcat))
       desfiltactivities <- desfiltactivities[,c("outcome","activity",input$desslctperiod,input$desslctcat,"startweek","duration")]
@@ -2770,8 +2775,18 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     output$outcomes_heatmap <- shiny::renderPlot({
       shiny::req(!base::is.null(desfiltactivities()))
       shiny::req(!base::is.null(input$desslctstat))
-      graphbasis <- desfiltactivities() |>
-        dplyr::select(outcome, activity, category, units) |>
+      
+      if (!base::is.null(input$slctegooutcome)){
+        graphbasis <- desfiltactivities() |>
+          dplyr::select(outcome, activity, category, units) |>
+          dplyr::arrange(outcome) |>
+          dplyr::mutate(outcome = base::factor(outcome, levels = base::unique(outcome)))
+      } else {
+        graphbasis <- desfiltactivities() |>
+          dplyr::select(outcome, activity, category, units)
+      }
+      
+      graphbasis <- graphbasis |>
         base::unique() |>
         tidyr::complete(category, outcome, fill = base::list(units = 0)) |>
         dplyr::group_by(activity, category, units) |>
@@ -2780,6 +2795,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         dplyr::mutate(units = units / outcomenbr) |>
         dplyr::group_by(outcome, category) |>
         dplyr::summarise(units = base::sum(units))
+      
       if (input$desslctstat == "Deciles"){
         graphbasis <- graphbasis |>
           dplyr::mutate(units = base::round(dplyr::percent_rank(units)*10,0))
@@ -3196,7 +3212,13 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         dplyr::mutate(outcome = base::as.character(outcome))
       
       activities <- reactval$activities |>
-        dplyr::mutate(order = base::as.numeric(order)) |>
+        dplyr::mutate(
+          order = base::as.numeric(order),
+          weigth = base::as.numeric(weigth),
+          duration = base::as.numeric(duration),
+          start = base::as.character(start),
+          end = base::as.character(end)
+        ) |>
         dplyr::arrange(order)
       activitylevels <- activities$activity
       
