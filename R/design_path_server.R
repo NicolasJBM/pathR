@@ -3,8 +3,9 @@
 #' @author Nicolas Mangin
 #' @description Module facilitating the design and visualization or a complete learning experience.
 #' @param id Character. ID of the module to connect the user interface to the appropriate server side.
-#' @param intake Reactive. Function containing all information about the selected intake.
-#' @param course_data List. description
+#' @param selected_path Character. Selected path.
+#' @param tbltree Reactive Tree associated to the path.
+#' @param course_data Reactive. All databases loaded from the course.
 #' @param course_paths Reactive. Function containing a list of paths to the different folders and databases on local disk.
 #' @return Save the new or modified page in the folder "2_documents/main_language/".
 #' @importFrom DT renderDataTable
@@ -144,7 +145,7 @@
 
 
 
-design_path_server <- function(id, intake = NULL, course_data = NULL, course_paths = NULL){
+design_path_server <- function(id, selected_path, tbltree = NULL, course_data = NULL, course_paths = NULL){
   ns <- shiny::NS(id)
   shiny::moduleServer(id, function(input, output, session) {
     
@@ -238,70 +239,42 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     subgroup <- NULL
     findbidir <- NULL
     preslctsubgroup <- NULL
-    
-    
-    
+    included <- NULL
+    path <- NULL
+    status <- NULL
     
     
     # INPUT METHOD #############################################################
     
-    sourcetype <- shiny::reactive({
-      shiny::req(!base::is.null(intake))
-      if (base::is.null(course_data) | base::is.null(course_paths)){
-        "external"
-      } else {
-        "internal"
-      }
-    })
-    
     output$topmenu <- shiny::renderUI({
-      shiny::req(!base::is.null(sourcetype()))
-      
-      if (sourcetype() == "internal"){
-        
-        shiny::fluidRow(
-          shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
-          shiny::column(2, shiny::actionButton(
-            ns("loadpath"), "Reload",
-            icon = shiny::icon("upload"),
-            style = "width:100%;color:#FFFFFF;background-color:#003366;"
-          )),
-          shiny::column(2, shiny::actionButton(
-            ns("savepaths"), "Save",
-            icon = shiny::icon("floppy-disk"),
-            style = "width:100%;color:#FFFFFF;background-color:#006633;"
-          )),
-          shiny::column(2, shiny::actionButton(
-            ns("openpaths"), "Open",
-            icon = shiny::icon("file-excel"),
-            style = "width:100%;color:#FFFFFF;background-color:#000099;"
-          )),
-          shiny::column(2, shiny::actionButton(
-            ns("openfolder"), "Folder",
-            icon = shiny::icon("folder-open"),
-            style = "width:100%;color:#FFFFFF;background-color:#660099;"
-          ))
-        )
-        
-      } else {
-        
-        shiny::fluidRow(
-          shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
-          shiny::column(2, shiny::fileInput(ns("uploadpath"), label = NULL, accept = ".xlsx", width = "100%")),
-          shiny::column(2, shiny::actionButton(
-            ns("loadpath"), "Reload",
-            icon = shiny::icon("upload"),
-            style = "width:100%;color:#FFFFFF;background-color:#003366;"
-          )),
-          shiny::column(2, shiny::actionButton(
-            ns("savepaths"), "Save",
-            icon = shiny::icon("floppy-disk"),
-            style = "width:100%;color:#FFFFFF;background-color:#006633;"
-          )),
-          shiny::column(2, shiny::downloadButton(ns("downloadpath"), "Download"))
-        )
-        
-      }
+      shiny::fluidRow(
+        shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
+        shiny::column(2, shiny::actionButton(
+          ns("newpath"), "New",
+          icon = shiny::icon("wand-magic-sparkles"),
+          style = "width:100%;color:#FFFFFF;background-color:#330066;"
+        )),
+        shiny::column(2, shiny::actionButton(
+          ns("loadpath"), "Load",
+          icon = shiny::icon("upload"),
+          style = "width:100%;color:#FFFFFF;background-color:#003366;"
+        )),
+        shiny::column(2, shiny::actionButton(
+          ns("savepaths"), "Save",
+          icon = shiny::icon("floppy-disk"),
+          style = "width:100%;color:#FFFFFF;background-color:#006633;"
+        )),
+        shiny::column(2, shiny::actionButton(
+          ns("openpaths"), "Open",
+          icon = shiny::icon("file-excel"),
+          style = "width:100%;color:#FFFFFF;background-color:#000099;"
+        )),
+        shiny::column(2, shiny::actionButton(
+          ns("openfolder"), "Folder",
+          icon = shiny::icon("folder-open"),
+          style = "width:100%;color:#FFFFFF;background-color:#660099;"
+        ))
+      )
     })
     
      
@@ -311,45 +284,50 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     
     pathfile <- shiny::reactive({
       input$loadpath
-      shiny::req(!base::is.null(sourcetype()))
-      if (sourcetype() == "internal"){
-        base::paste0(
-          course_paths()$subfolders$paths, "/",
-          intake()$intake$path[1], ".xlsx"
-        )
-      } else {
-        if (!base::is.null(input$uploadpath)) {
-          input$uploadpath$datapath
-        } else {
-          NA
-        }
-      }
+      shiny::req(!base::is.null(selected_path))
+      base::paste0(course_paths()$subfolders$paths, "/", selected_path, ".xlsx")
     })
     
+    included_documents <- shiny::reactive({
+      selection <- tbltree() |>
+        dplyr::filter(stringr::str_detect(path, "^Included/")) |>
+        dplyr::select(file) |>
+        base::unlist()
+      course_data()$documents |>
+        dplyr::filter(file %in% selection)
+    })
+    
+    included_outcomes <- shiny::reactive({
+      selection <- included_documents() |>
+        dplyr::select(outcome) |>
+        base::unlist() |>
+        stringr::str_split(" ", simplify = TRUE) |>
+        base::as.character() |>
+        base::unique()
+      base::setdiff(selection, c("","NA"))
+    })
+    
+    
+    
+    shiny::observeEvent(input$newpath, {
+      
+    })
+    
+    shiny::observeEvent(input$createnewpath, {
+      writexl::write_xlsx(pathR::create_database(), path = pathfile())
+    })
+    
+    
+    
     shiny::observe({
-      
-      shiny::req(!base::is.null(sourcetype()))
-      shiny::req(!base::is.na(pathfile()))
-      
-      if (sourcetype() == "internal" & !base::file.exists(pathfile())){
-        writexl::write_xlsx(pathR::create_database(), path = pathfile())
-      }
-      
-      shiny::req(base::file.exists(pathfile()))
-      
       reactval$outcomes <- readxl::read_excel(pathfile(), sheet = "outcomes", col_types = "text")
       reactval$connections <- readxl::read_excel(pathfile(), sheet = "connections", col_types = "text")
       reactval$outlabels <- readxl::read_excel(pathfile(), sheet = "outlabels", col_types = "text")
       reactval$activities <- readxl::read_excel(pathfile(), sheet = "activities", col_types = "text")
       reactval$actlabels <- readxl::read_excel(pathfile(), sheet = "actlabels", col_types = "text")
       reactval$attributes <- readxl::read_excel(pathfile(), sheet = "attributes", col_types = "text")
-      
-      if (sourcetype() == "internal"){
-        reactval$languages <- course_data()$languages
-      } else {
-        reactval$languages <- readxl::read_excel(pathfile(), sheet = "languages", col_types = "text")
-      }
-      
+      reactval$files <- readxl::read_excel(pathfile(), sheet = "files", col_types = "text")
+      reactval$languages <- course_data()$languages
     })
     
     
@@ -388,17 +366,24 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       shiny::req(!base::is.null(input$slctlang))
       shiny::req(!base::is.null(reactval$outcomes))
       shiny::req(!base::is.null(reactval$outlabels))
+      shiny::req(!base::is.null(included_outcomes()))
       labels <- reactval$outlabels |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::select(-language)
-      reactval$outcomes |>
+      tibble::tibble(outcome = included_outcomes()) |>
+        dplyr::full_join(reactval$outcomes, by = "outcome") |>
         dplyr::left_join(labels, by = "outcome") |>
         dplyr::select(outcome, label, description, lmsid, URL, order, type, color) |>
         dplyr::mutate(
           type = base::factor(type, levels = c("GEN","SPE","PRE")),
-          order = base::as.numeric(order)
+          order = base::as.numeric(order),
+          status = dplyr::case_when(
+            base::is.na(label) ~ "2 - Missing",
+            !(outcome %in% included_outcomes()) ~ "3 - Exluded",
+            TRUE ~ "1 - Included"
+          )
         ) |>
-        dplyr::arrange(order)
+        dplyr::arrange(status, order)
     })
     
     
@@ -411,7 +396,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
           height = 500, width = "100%", rowHeaders = NULL, stretchH = "all"
         ) |>
         rhandsontable::hot_cols(
-          colWidths = c("10%","20%","40%","5%","10%","5%","5%","5%")
+          colWidths = c("10%","20%","35%","5%","10%","5%","5%","5%","5%")
         ) |>
         rhandsontable::hot_col(1, readOnly = TRUE) |>
         rhandsontable::hot_context_menu(
@@ -497,9 +482,10 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         reactval$connections <- connections
         reactval$activities <- activities
         
+        
         shinyalert::shinyalert(
           "Outcomes updtated",
-          "Refresh the map to see the changes.",
+          "Refresh the map to see the changes. If you change en outcome id, you will have to change it in all documents manually.",
           type = "success"
         )
         
@@ -530,11 +516,15 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     
     # Edit connections between outcomes in a table
     output$editconnections <- rhandsontable::renderRHandsontable({
+      
+      included_outcomes <- reactval$outcomes |>
+        dplyr::filter(outcome %in% included_outcomes())
+      
       reactval$connections |>
         stats::na.omit() |>
         dplyr::mutate(
-          origin = base::factor(origin, reactval$outcomes$outcome),
-          destination = base::factor(destination, reactval$outcomes$outcome)
+          origin = base::factor(origin, included_outcomes$outcome),
+          destination = base::factor(destination, included_outcomes$outcome)
         ) |>
         dplyr::arrange(origin, destination) |>
         rhandsontable::rhandsontable(
@@ -547,6 +537,8 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
           allowRowEdit = TRUE, allowColEdit = FALSE
         )
     })
+    
+    
     
     shiny::observeEvent(input$updateconnections, {
       updated_connections <- rhandsontable::hot_to_r(input$editconnections) |>
@@ -571,8 +563,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       types <- c("GEN","SPE","PRE")
       base::names(types) <- c("Generic Learning Outcome","Specific Learning Outcome","Prerequisite")
       
-      outcomes <- outcomelist()$outcome
-      base::names(outcomes) <- stringr::str_replace_all(outcomelist()$label, "_", " ")
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      
+      outcomes <- outcomelist$outcome
+      base::names(outcomes) <- stringr::str_replace_all(outcomelist$label, "_", " ")
       
       shiny::showModal(shiny::modalDialog(
         title = "Add a new outcome",
@@ -716,8 +711,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     shiny::observeEvent(input$newconnection, {
       shiny::req(!base::is.null(outcomelist()))
       
-      outcomes <- c(outcomelist()$outcome)
-      base::names(outcomes) <- c(stringr::str_replace_all(outcomelist()$label, "_", " "))
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      
+      outcomes <- c(outcomelist$outcome)
+      base::names(outcomes) <- c(stringr::str_replace_all(outcomelist$label, "_", " "))
       
       shiny::showModal(shiny::modalDialog(
         title = "Add or edit a connection",
@@ -782,8 +780,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     shiny::observeEvent(input$splitoutcome, {
       shiny::req(!base::is.null(outcomelist()))
       
-      outcomes <- outcomelist()$outcome
-      base::names(outcomes) <- outcomelist()$label
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      
+      outcomes <- outcomelist$outcome
+      base::names(outcomes) <- outcomelist$label
       
       shiny::showModal(shiny::modalDialog(
         title = "Split an outcome",
@@ -922,8 +923,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     shiny::observeEvent(input$mergeoutcomes, {
       shiny::req(!base::is.null(outcomelist()))
       
-      outcomes <- outcomelist()$outcome
-      base::names(outcomes) <- outcomelist()$label
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      
+      outcomes <- outcomelist$outcome
+      base::names(outcomes) <- outcomelist$label
       
       shiny::showModal(shiny::modalDialog(
         title = "Merge outcomes",
@@ -1184,7 +1188,9 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     # Visualize the outcome map.
     output$egooutcomeselection <- shiny::renderUI({
       shiny::req(!base::is.null(outcomelist()))
-      outcomes <- outcomelist() |>
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      outcomes <- outcomelist |>
         dplyr::select(outcome, label, color) |>
         dplyr::mutate(label = stringr::str_replace_all(label, "_", " "))
       outcomechoices <- outcomes$outcome
@@ -1221,6 +1227,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         shiny::incProgress(1/10)
         
         nodes <- outcomelist() |>
+          dplyr::filter(status == "1 - Included") |>
           tidyr::replace_na(base::list(description = " ")) |>
           dplyr::mutate(
             shape = dplyr::case_when(
@@ -1247,6 +1254,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         shiny::incProgress(1/10)
         
         edges <- reactval$connections |>
+          dplyr::filter(origin %in% outcomelist()$outcome, destination %in% outcomelist()$outcome) |>
           dplyr::left_join(dplyr::select(outcomelist(), origin = outcome, origlab = label), by = "origin") |>
           dplyr::left_join(dplyr::select(outcomelist(), destination = outcome, destlab = label), by = "destination") |>
           dplyr::select(origin = origlab, destination = destlab) |>
@@ -1408,6 +1416,16 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     
     
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # Create activities and edit attributes specific to a language in a table.
     activitylist <- shiny::reactive({
       shiny::req(!base::is.na(pathfile()))
@@ -1418,10 +1436,47 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         dplyr::select(-language)
       reactval$activities |>
         dplyr::left_join(labels, by = "activity") |>
+        dplyr::mutate(outcomes = purrr::map_lgl(
+          outcomes,
+          function(x,y){
+            x <- base::as.character(stringr::str_split(x, pattern = " ", simplify = TRUE))
+            base::all(x %in% y)
+          },
+          y = included_outcomes()
+        )) |>
+        dplyr::filter(outcomes == TRUE) |>
         dplyr::select(activity, order, label, description, lmsid, URL) |>
         dplyr::mutate(order = base::as.numeric(order)) |>
         dplyr::arrange(order)
     })
+    
+    
+    
+    
+    tags_to_attributes <- shiny::reactive({
+      
+      # take included documents which are not yet affected in files.
+      # select their tags and values
+      # Take the attributes and their US labels 
+      # Combine them
+      
+    })
+    
+    
+    
+    
+    output$definedoctoact <- rhandsontable::renderRHandsontable({
+      
+      
+    })
+    
+    
+    shiny::observeEvent(input$doc_to_act, {
+      
+    })
+    
+    
+    
     
     
     
@@ -1573,8 +1628,11 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
       acttype <- activity$type[[1]]
       
-      outcomes <- c(NA, outcomelist()$outcome)
-      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      
+      outcomes <- c(NA, outcomelist$outcome)
+      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist$label, "_", " "))
       
       preslctoutcomes <- activity$outcomes[1] |>
         stringr::str_split(" ", simplify = TRUE) |>
@@ -1807,8 +1865,10 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       shiny::req(!base::is.null(reactval$activities))
       
       types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
-      outcomes <- c(NA, outcomelist()$outcome)
-      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist()$label, "_", " "))
+      outcomelist <- outcomelist() |>
+        dplyr::filter(status == "1 - Included")
+      outcomes <- c(NA, outcomelist$outcome)
+      base::names(outcomes) <- c("Not assigned yet", stringr::str_replace_all(outcomelist$label, "_", " "))
       subgroups <- c(NA, base::unique(reactval$activities$subgroup))
       attrchoices <- reactval$attributes |>
         dplyr::filter(language == input$slctlang) |>
@@ -2560,6 +2620,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
       shiny::req(!base::is.null(activity_labels()))
       
       outcomes <- outcomelist() |>
+        dplyr::filter(status == "1 - Included") |>
         dplyr::mutate(
           order = -base::as.numeric(order),
           label = stringr::str_replace_all(label, "_", " "),
@@ -2892,7 +2953,8 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
         outlabels = outlabels,
         activities = activities,
         actlabels = actlabels,
-        attributes = reactval$attributes
+        attributes = reactval$attributes,
+        files = reactval$files
       )
     })
     
@@ -2901,11 +2963,7 @@ design_path_server <- function(id, intake = NULL, course_data = NULL, course_pat
     shiny::observeEvent(input$savepaths, {
       shiny::req(!base::is.na(pathfile()))
       quietly_write <- purrr::safely(writexl::write_xlsx)
-      if (sourcetype() == "internal"){
-        check <- quietly_write(learning_journey(), path = pathfile())
-      } else {
-        check <- quietly_write(learning_journey(), path = "www/coursemap.xlsx")
-      }
+      check <- quietly_write(learning_journey(), path = pathfile())
       
       if (!base::is.null(check$error)){
         shinyalert::shinyalert(

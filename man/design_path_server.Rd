@@ -4,14 +4,22 @@
 \alias{design_path_server}
 \title{Design learning paths}
 \usage{
-design_path_server(id, intake = NULL, course_data = NULL, course_paths = NULL)
+design_path_server(
+  id,
+  selected_path,
+  tbltree = NULL,
+  course_data = NULL,
+  course_paths = NULL
+)
 }
 \arguments{
 \item{id}{Character. ID of the module to connect the user interface to the appropriate server side.}
 
-\item{intake}{Reactive. Function containing all information about the selected intake.}
+\item{selected_path}{Character. Selected path.}
 
-\item{course_data}{List. description}
+\item{tbltree}{Reactive Tree associated to the path.}
+
+\item{course_data}{Reactive. All databases loaded from the course.}
 
 \item{course_paths}{Reactive. Function containing a list of paths to the different folders and databases on local disk.}
 }

@@ -90,10 +90,9 @@ create_database <- function(){
     "requirement", "NEC", "FR", "Necessaire", "circle-exclamation"
   )
   
-  languages <- tibble::tribble(
-    ~langiso, ~language, ~flag,
-    "US","English","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/gb.svg",
-    "FR","French","https://raw.githubusercontent.com/lipis/flag-icons/d6785f2434e54e775d55a304733d17b048eddfb5/flags/1x1/fr.svg"
+  files <- tibble::tibble(
+    activity = base::character(0),
+    file = base::character(0)
   )
   
   base::list(
@@ -103,6 +102,6 @@ create_database <- function(){
     activities = activities,
     actlabels = actlabels,
     attributes = attributes,
-    languages = languages
+    files = files
   )
 }

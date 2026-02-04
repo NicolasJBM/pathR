@@ -166,7 +166,20 @@ design_path_ui <- function(id){
             2,
             shiny::fluidRow(
               shiny::column(
-                6,
+                4,
+                shinyWidgets::dropdown(
+                  shiny::actionButton(ns("doc_to_act"), "Organize", icon = shiny::icon("wand-magic-sparkles"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+                  rhandsontable::rHandsontableOutput(ns("definedoctoact")),
+                  size = "lg", style = "unite", icon = icon("layer-group"),
+                  status = "danger", width = "1600px",
+                  animate = shinyWidgets::animateOptions(
+                    enter = shinyWidgets::animations$fading_entrances$fadeInLeftBig,
+                    exit = shinyWidgets::animations$fading_exits$fadeOutRightBig
+                  )
+                )
+              ),
+              shiny::column(
+                4,
                 shinyWidgets::dropdown(
                   shiny::actionButton(ns("updateactivities"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
                   rhandsontable::rHandsontableOutput(ns("editactivities")),
@@ -179,7 +192,7 @@ design_path_ui <- function(id){
                 )
               ),
               shiny::column(
-                6,
+                4,
                 shinyWidgets::dropdown(
                   pathR::select_activity_ui(ns("slctact"), "Activity"),
                   shiny::uiOutput(ns("editattributes")),
