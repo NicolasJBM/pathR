@@ -158,6 +158,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     language <- NULL
     modrval <- NULL
     outcome <- NULL
+    tag_outcome <- NULL
     type <- NULL
     destination <- NULL
     destlab <- NULL
@@ -285,7 +286,9 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     pathfile <- shiny::reactive({
       input$loadpath
       shiny::req(!base::is.null(selected_path))
-      base::paste0(course_paths()$subfolders$paths, "/", selected_path, ".xlsx")
+      path <- selected_path()
+      file <- base::paste0(course_paths()$subfolders$paths, "/", path, ".xlsx")
+      if (base::file.exists(file)) file else NULL
     })
     
     included_documents <- shiny::reactive({
@@ -299,7 +302,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     
     included_outcomes <- shiny::reactive({
       selection <- included_documents() |>
-        dplyr::select(outcome) |>
+        dplyr::select(tag_outcome) |>
         base::unlist() |>
         stringr::str_split(" ", simplify = TRUE) |>
         base::as.character() |>
@@ -314,12 +317,14 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     })
     
     shiny::observeEvent(input$createnewpath, {
+      shiny::req(!base::is.null(pathfile()))
       writexl::write_xlsx(pathR::create_database(), path = pathfile())
     })
     
     
     
     shiny::observe({
+      shiny::req(!base::is.null(pathfile()))
       reactval$outcomes <- readxl::read_excel(pathfile(), sheet = "outcomes", col_types = "text")
       reactval$connections <- readxl::read_excel(pathfile(), sheet = "connections", col_types = "text")
       reactval$outlabels <- readxl::read_excel(pathfile(), sheet = "outlabels", col_types = "text")
