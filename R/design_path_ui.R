@@ -166,10 +166,16 @@ design_path_ui <- function(id){
             2,
             shiny::fluidRow(
               shiny::column(
-                4,
+                3,
                 shinyWidgets::dropdown(
                   shiny::actionButton(ns("doc_to_act"), "Organize", icon = shiny::icon("wand-magic-sparkles"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
-                  rhandsontable::rHandsontableOutput(ns("definedoctoact")),
+                  shiny::uiOutput(ns("att_to_tags")),
+                  shiny::dateInput(ns("startingdate"), "First day:"),
+                  shiny::actionButton(
+                    ns("createactivities"),
+                    "Create activities", icon = shiny::icon("gears"),
+                    style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#660099;"
+                  ),
                   size = "lg", style = "unite", icon = icon("layer-group"),
                   status = "danger", width = "1600px",
                   animate = shinyWidgets::animateOptions(
@@ -179,7 +185,7 @@ design_path_ui <- function(id){
                 )
               ),
               shiny::column(
-                4,
+                3,
                 shinyWidgets::dropdown(
                   shiny::actionButton(ns("updateactivities"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
                   rhandsontable::rHandsontableOutput(ns("editactivities")),
@@ -192,12 +198,50 @@ design_path_ui <- function(id){
                 )
               ),
               shiny::column(
-                4,
+                3,
                 shinyWidgets::dropdown(
                   pathR::select_activity_ui(ns("slctact"), "Activity"),
                   shiny::uiOutput(ns("editattributes")),
                   shiny::actionButton(ns("updateactattr"), "Update", icon = shiny::icon("rotate"), style = "width:100%;color:#FFFFFF;background-color:#003366;"),
+                  shiny::tableOutput(ns("relfiles")),
                   size = "lg", style = "unite", icon = icon("id-card"),
+                  status = "danger", width = "1600px",
+                  animate = shinyWidgets::animateOptions(
+                    enter = shinyWidgets::animations$fading_entrances$fadeInLeftBig,
+                    exit = shinyWidgets::animations$fading_exits$fadeOutRightBig
+                  )
+                )
+              ),
+              shiny::column(
+                3,
+                shinyWidgets::dropdown(
+                  shiny::fluidRow(
+                    shiny::column(
+                      3,
+                      shinyWidgets::materialSwitch(
+                        inputId = ns("filternonassigned"),
+                        label = "Only non-assigned", 
+                        status = "primary",
+                        right = FALSE
+                      )
+                    ),
+                    shiny::column(
+                      3,
+                      shiny::uiOutput(ns("selectdoctoassign"))
+                    ),
+                    shiny::column(
+                      3,
+                      shiny::uiOutput(ns("selectacttoassign"))
+                    ),
+                    shiny::column(
+                      3,
+                      shiny::actionButton(
+                        ns("updatedocassign"), "Update",
+                        icon = shiny::icon("rotate"), style = "width:50%;color:#FFFFFF;background-color:#003366;margin-top:25px;"
+                      ),
+                    )
+                  ),
+                  size = "lg", style = "unite", icon = icon("file-arrow-down"),
                   status = "danger", width = "1600px",
                   animate = shinyWidgets::animateOptions(
                     enter = shinyWidgets::animations$fading_entrances$fadeInLeftBig,
@@ -239,7 +283,8 @@ design_path_ui <- function(id){
               ),
               justified = TRUE, width = "100%"
             ),
-            shiny::actionButton(ns("refreshactmap"), "Map", icon = shiny::icon("map"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#990066;")
+            shiny::actionButton(ns("refreshactmap"), "Map", icon = shiny::icon("map"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#990066;"),
+            shiny::actionButton(ns("maketest"), "Create test", icon = shiny::icon("list-check"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#990000;")
           ),
           # Visualization
           shiny::column(10, shiny::uiOutput(ns("activitymap")))

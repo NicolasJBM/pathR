@@ -177,6 +177,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     attribute <- NULL
     value <- NULL
     duration <- NULL
+    sample <- NULL
     end <- NULL
     peripheries <- NULL
     reqlab <- NULL
@@ -243,34 +244,28 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     included <- NULL
     path <- NULL
     status <- NULL
+    position  <- NULL
+    preporder <- NULL
+    tag_duration <- NULL
+    time_per_document <- NULL
     
     
     # INPUT METHOD #############################################################
     
     output$topmenu <- shiny::renderUI({
       shiny::fluidRow(
-        shiny::column(2, shiny::uiOutput(ns("slctlanguage"))),
-        shiny::column(2, shiny::actionButton(
-          ns("newpath"), "New",
-          icon = shiny::icon("wand-magic-sparkles"),
-          style = "width:100%;color:#FFFFFF;background-color:#330066;"
-        )),
-        shiny::column(2, shiny::actionButton(
-          ns("loadpath"), "Load",
-          icon = shiny::icon("upload"),
-          style = "width:100%;color:#FFFFFF;background-color:#003366;"
-        )),
-        shiny::column(2, shiny::actionButton(
+        shiny::column(3, shiny::uiOutput(ns("slctlanguage"))),
+        shiny::column(3, shiny::actionButton(
           ns("savepaths"), "Save",
           icon = shiny::icon("floppy-disk"),
           style = "width:100%;color:#FFFFFF;background-color:#006633;"
         )),
-        shiny::column(2, shiny::actionButton(
+        shiny::column(3, shiny::actionButton(
           ns("openpaths"), "Open",
           icon = shiny::icon("file-excel"),
           style = "width:100%;color:#FFFFFF;background-color:#000099;"
         )),
-        shiny::column(2, shiny::actionButton(
+        shiny::column(3, shiny::actionButton(
           ns("openfolder"), "Folder",
           icon = shiny::icon("folder-open"),
           style = "width:100%;color:#FFFFFF;background-color:#660099;"
@@ -284,7 +279,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     reactval <- shiny::reactiveValues()
     
     pathfile <- shiny::reactive({
-      input$loadpath
       shiny::req(!base::is.null(selected_path))
       path <- selected_path()
       file <- base::paste0(course_paths()$subfolders$paths, "/", path, ".xlsx")
@@ -292,12 +286,10 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     })
     
     included_documents <- shiny::reactive({
-      selection <- tbltree() |>
+      tbltree() |>
         dplyr::filter(stringr::str_detect(path, "^Included/")) |>
-        dplyr::select(file) |>
-        base::unlist()
-      course_data()$documents |>
-        dplyr::filter(file %in% selection)
+        dplyr::select(file, position) |>
+        dplyr::left_join(course_data()$documents, by = "file")
     })
     
     included_outcomes <- shiny::reactive({
@@ -308,17 +300,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
         base::as.character() |>
         base::unique()
       base::setdiff(selection, c("","NA"))
-    })
-    
-    
-    
-    shiny::observeEvent(input$newpath, {
-      
-    })
-    
-    shiny::observeEvent(input$createnewpath, {
-      shiny::req(!base::is.null(pathfile()))
-      writexl::write_xlsx(pathR::create_database(), path = pathfile())
     })
     
     
@@ -338,7 +319,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     
     
     output$slctlanguage <- shiny::renderUI({
-      input$reloadpath
       shiny::req(!base::is.null(reactval$languages))
       languages <- reactval$languages |>
         dplyr::select(langiso, language, flag)
@@ -1417,18 +1397,101 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     # ACTIVITIES ###############################################################
     
     
+    # ACTIVITY CREATION ########################################################
+    
+    
+    output$att_to_tags <- shiny::renderUI({
+      shiny::req(!base::is.null(included_documents()))
+      tags <- included_documents() |>
+        dplyr::select(dplyr::starts_with("tag_")) |>
+        base::names() |>
+        base::as.character()
+      base::list(
+        shinyWidgets::pickerInput(ns("outcomestotag"), "Tag for outcomes:", choices = tags, selected = "tag_outcome", inline = TRUE),
+        shinyWidgets::pickerInput(ns("subgrouptotag"), "Tag for subgroup:", choices = tags, selected = "tag_subgroup", inline = TRUE),
+        shinyWidgets::pickerInput(ns("reqtotag"), "Tag for requirement:", choices = tags, selected = "tag_requirement", inline = TRUE),
+        shinyWidgets::pickerInput(ns("leveltotag"), "Tag for level:", choices = tags, selected = "tag_level", inline = TRUE),
+        shinyWidgets::pickerInput(ns("tstotag"), "Tag for time and space:", choices = tags, selected = "tag_timespace", inline = TRUE),
+        shinyWidgets::pickerInput(ns("socialtotag"), "Tag for social:", choices = tags, selected = "tag_social", inline = TRUE),
+        shinyWidgets::pickerInput(ns("durationtotag"), "Tag for duration:", choices = tags, selected = "tag_duration", inline = TRUE),
+        shinyWidgets::pickerInput(ns("weektotag"), "Tag for week:", choices = tags, selected = "tag_week", inline = TRUE)
+      )
+    })
+    
+    
+    shiny::observeEvent(input$createactivities, {
+      shiny::req(!base::is.null(included_documents()))
+      baseactfile <- included_documents() |>
+        dplyr::arrange(position) |>
+        tibble::rowid_to_column("preporder") |>
+        dplyr::select(
+          file, preporder, type,
+          outcomes = input$outcomestotag,
+          subgroup = input$subgrouptotag,
+          requirement = input$reqtotag,
+          level = input$leveltotag,
+          time_space = input$tstotag,
+          social = input$socialtotag,
+          duration = input$durationtotag,
+          week = input$weektotag
+        ) |>
+        dplyr::mutate(
+          weigth = 0,
+          week = base::as.numeric(stringr::str_replace_all(week, "NA","0")),
+          start = input$startingdate + (week-1) * 7,
+          end = input$startingdate + week * 7
+        ) |>
+        dplyr::select(-week) |>
+        dplyr::group_by(
+          type, outcomes, subgroup, requirement, weigth,
+          level, time_space, social, start, end,
+        ) |>
+        dplyr::mutate(preporder = base::mean(preporder)) |>
+        dplyr::ungroup() |>
+        dplyr::group_by(
+          preporder, type, outcomes, subgroup, requirement, weigth,
+          level, time_space, social, start, end
+        ) |>
+        tidyr::nest() |>
+        dplyr::ungroup() |>
+        dplyr::arrange(preporder) |>
+        tibble::rowid_to_column("order") |>
+        dplyr::mutate(sample = purrr::map_int(data, base::nrow)) |>
+        dplyr::mutate(activity = base::paste0("ACT", order))
+      
+      activities <- baseactfile |>
+        dplyr::select(base::names(reactval$activities))
+      
+      files <- baseactfile |>
+        dplyr::select(activity, data) |>
+        tidyr::unnest("data")
+      
+      actlabels <- reactval$languages |>
+        dplyr::select(langiso) |>
+        dplyr::mutate(activity = base::list(activities$activity)) |>
+        dplyr::select(activity, language = langiso) |>
+        tidyr::unnest("activity") |>
+        dplyr::mutate(
+          label = base::paste(activity, language, sep = "-"),
+          description = base::paste(activity, language, sep = "-"),
+          lmsid = base::as.character(NA),
+          URL = base::as.character(NA)
+        )
+      
+      reactval$actlabels <- actlabels
+      reactval$activities <- activities
+      reactval$files <- files
+      
+      shinyalert::shinyalert(
+        title = "Activities created!",
+        text = "All included documents have been organized per activity.",
+        type = "success"
+      )
+    })
+    
+    
+    
     # ACTIVITY EDITION #########################################################
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     # Create activities and edit attributes specific to a language in a table.
@@ -1436,6 +1499,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
       shiny::req(!base::is.na(pathfile()))
       shiny::req(!base::is.null(input$slctlang))
       shiny::req(!base::is.null(reactval$activities))
+      
       labels <- reactval$actlabels |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::select(-language)
@@ -1452,36 +1516,8 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
         dplyr::filter(outcomes == TRUE) |>
         dplyr::select(activity, order, label, description, lmsid, URL) |>
         dplyr::mutate(order = base::as.numeric(order)) |>
-        dplyr::arrange(order)
+        dplyr::arrange(order) 
     })
-    
-    
-    
-    
-    tags_to_attributes <- shiny::reactive({
-      
-      # take included documents which are not yet affected in files.
-      # select their tags and values
-      # Take the attributes and their US labels 
-      # Combine them
-      
-    })
-    
-    
-    
-    
-    output$definedoctoact <- rhandsontable::renderRHandsontable({
-      
-      
-    })
-    
-    
-    shiny::observeEvent(input$doc_to_act, {
-      
-    })
-    
-    
-    
     
     
     
@@ -1617,6 +1653,18 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     
     selected_activity <- pathR::select_activity_server("slctact", list_of_activities)
     
+    output$relfiles <- shiny::renderTable({
+      shiny::req(!base::is.null(reactval$files))
+      shiny::req(!base::is.null(selected_activity()))
+      shiny::req(!base::is.null(included_documents()))
+      reactval$files |>
+        dplyr::filter(activity == selected_activity()) |>
+        dplyr::select(file) |>
+        base::unique() |>
+        dplyr::left_join(included_documents(), by = "file") |>
+        dplyr::select(title, file)
+    })
+    
     output$editattributes <- shiny::renderUI({
       shiny::req(!base::is.null(activitylist()))
       shiny::req(!base::is.null(outcomelist()))
@@ -1630,7 +1678,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
       activity <- reactval$activities |>
         dplyr::filter(activity == selected_activity())
       
-      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
+      types <- course_data()$document_types$type
       acttype <- activity$type[[1]]
       
       outcomelist <- outcomelist() |>
@@ -1795,9 +1843,9 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           shiny::column(
             3,
             shiny::numericInput(
-              ns("defduration"), "Duration:",
+              ns("defsample"), "Sample:",
               min = 5, max = 480, step = 5,
-              value = base::as.numeric(activity$duration[1]),
+              value = base::as.numeric(activity$sample[1]),
               width = "100%"
             )
           )
@@ -1836,6 +1884,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
       shiny::req(!base::is.null(input$deftimespace))
       shiny::req(!base::is.null(input$defsocial))
       shiny::req(!base::is.null(input$defweight))
+      shiny::req(!base::is.null(input$defsample))
       
       update_activity <- tibble::tibble(
         activity = selected_activity(),
@@ -1848,7 +1897,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
         level = input$deflevel,
         time_space = input$deftimespace,
         social = input$defsocial,
-        duration = input$defduration,
+        sample = input$defsample,
         start = input$defstart,
         end = input$defend
       ) |>
@@ -1869,7 +1918,8 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
       shiny::req(!base::is.null(outcomelist()))
       shiny::req(!base::is.null(reactval$activities))
       
-      types <- c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")
+      types <- course_data()$document_types$type
+      
       outcomelist <- outcomelist() |>
         dplyr::filter(status == "1 - Included")
       outcomes <- c(NA, outcomelist$outcome)
@@ -2032,7 +2082,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           shiny::column(
             3,
             shiny::numericInput(
-              ns("newactduration"), "Duration:",
+              ns("newactsample"), "Sample:",
               min = 5, max = 480, step = 5,
               value = 0, width = "100%"
             )
@@ -2090,7 +2140,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           level = input$newactlevel,
           time_space = input$newacttimespace,
           social = input$newactsocial,
-          duration = input$newactduration,
+          sample = input$newactsample,
           start = input$newactstart,
           end = input$newactend
         ) |>
@@ -2231,6 +2281,76 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     })
     
     
+    # ASSIGNMENT OF DOCUMENTS ##################################################
+    
+    preselected_doc2assign <- shiny::reactive({
+      shiny::req(!base::is.null(input$filternonassigned))
+      shiny::req(!base::is.null(reactval$files))
+      shiny::req(!base::is.null(included_documents()))
+      
+      to_assign <- included_documents() |>
+        dplyr::arrange(position) |>
+        dplyr::mutate(title = base::paste0(title, " - ", type))
+      
+      if (input$filternonassigned){
+        assigned <- reactval$files |>
+          stats::na.omit()
+        to_assign <- to_assign |>
+          dplyr::filter(!(file %in% assigned$file))
+      }
+      
+      doc2assign <- to_assign$file
+      base::names(doc2assign) <- to_assign$title
+      
+      doc2assign
+    })
+    
+    output$selectdoctoassign <- shiny::renderUI({
+      shiny::req(!base::is.null(preselected_doc2assign()) & base::length(preselected_doc2assign()) > 0)
+      shiny::selectInput(
+        ns("slctdoctoassign"),
+        "Document:",
+        choices = preselected_doc2assign(),
+        selected = preselected_doc2assign()[1]
+      )
+    })
+    
+    output$selectacttoassign <- shiny::renderUI({
+      shiny::req(!base::is.null(activitylist()))
+      to_assign <- activitylist()$activity
+      base::names(to_assign) <- activitylist()$label
+      shiny::selectInput(
+        ns("slctacttoassign"),
+        "Activity:",
+        choices = to_assign,
+        selected = to_assign[1]
+      )
+    })
+    
+    shiny::observeEvent(input$updatedocassign, {
+      shiny::req(!base::is.null(preselected_doc2assign()) & base::length(preselected_doc2assign()) > 0)
+      shiny::req(!base::is.null(included_documents()))
+      shiny::req(!base::is.null(input$slctdoctoassign))
+      shiny::req(!base::is.null(input$slctacttoassign))
+      
+      addassign <- included_documents() |>
+        dplyr::filter(file == input$slctdoctoassign) |>
+        dplyr::mutate(activity = input$slctacttoassign)
+        dplyr::select(activity, file, duration = tag_duration)
+      
+      files <- reactval$files |>
+        dplyr::filter(file != input$slctdoctoassign) |>
+        dplyr::bind_rows(addassign)
+      
+      reactval$files <- files
+      
+      shinyalert::shinyalert(
+        title = "Document assigned",
+        text = "The document has been assigned to an activity.",
+        type = "success"
+      )
+    })
+    
     
     
     # ACTIVITY VISUALIZATION ###################################################
@@ -2239,6 +2359,17 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     activity_labels <- shiny::reactive({
       input$refreshmapact
       shiny::req(!base::is.null(reactval$outcomes))
+      shiny::req(!base::is.null(reactval$files))
+      
+      prepduration <- reactval$files |>
+        dplyr::group_by(activity) |>
+        stats::na.omit() |>
+        dplyr::summarise(
+          files = dplyr::n(),
+          duration = base::sum(base::as.numeric(duration), na.rm = TRUE)
+        ) |>
+        dplyr::mutate(time_per_document = duration / files)
+      
       outcomes <- dplyr::select(reactval$outcomes, outcome, color)
       req <- reactval$attributes |>
         dplyr::filter(attribute == "requirement", language == input$slctlang) |>
@@ -2256,6 +2387,9 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
       reactval$actlabels |>
         dplyr::filter(language == input$slctlang) |>
         dplyr::left_join(reactval$activities, by = "activity") |>
+        dplyr::left_join(prepduration, by = "activity") |>
+        dplyr::mutate(duration = base::as.numeric(sample) * time_per_document) |>
+        dplyr::select(-sample, -time_per_document) |>
         dplyr::mutate(
           outcome = purrr::map_chr(outcomes, function(x){
             y <- stringr::str_split(x, " ", simplify = TRUE) |>
@@ -2338,14 +2472,15 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           dplyr::mutate(weigth = base::as.numeric(weigth)) |>
           dplyr::mutate(
             shape = dplyr::case_when(
-              type == "Slide" ~ "square",
-              type == "Video" ~ "rectangle",
-              type == "Textbook" ~ "ellipse",
-              type == "Note" ~ "circle",
-              type == "Tutorial" ~ "hexagon",
-              type == "Game" ~ "septagon",
-              type == "Case" ~ "octagon",
-              type == "Test" ~ "star",
+              type == "Presentation" ~ "square",
+              type == "Script" ~ "square",
+              type == "Page" ~ "ellipse",
+              type == "Paper" ~ "circle",
+              type == "Statements" ~ "star",
+              type == "Alternatives" ~ "star",
+              type == "Computation" ~ "star",
+              type == "Essay" ~ "star",
+              type == "Problem" ~ "octagon",
               TRUE ~ "point"
             ),
             shapesize = dplyr::case_when(
@@ -2661,9 +2796,9 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           end = base::as.character(base::Sys.Date())
         )) |>
         dplyr::mutate(
-          type = base::factor(type, levels = c("Slide","Video","Textbook","Note","Tutorial","Game","Case","Test")),
+          type = base::factor(type, levels = course_data()$document_types$type),
           requirement = base::factor(requirement, levels = c("NEC","REC","OPT")),
-          level = base::factor(level, levels = c("NOV","APP","PRO","MAS","EXP")),
+          level = base::factor(level, levels = c("L1","L2","L3","L4","L5")),
           time_space = base::factor(time_space, levels = c("SOS","SOL","AOL")),
           social = base::factor(social, levels = c("GP","TM","IND")),
           duration = base::as.numeric(duration),
@@ -2684,6 +2819,8 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
         base::unique()
     })
     
+    
+    
     output$design_selections <- shiny::renderUI({
       shiny::req(!base::is.null(prepactivities()))
       shiny::fluidRow(
@@ -2699,7 +2836,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           selected = base::levels(prepactivities()$requirement),
           multiple = TRUE, width = "100%"
         )),
-        
         shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("desfiltlev"), "Levels:",
           choices = base::levels(prepactivities()$level),
@@ -2718,7 +2854,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
           selected = base::levels(prepactivities()$social),
           multiple = TRUE, width = "100%"
         )),
-        
         shiny::column(1, shinyWidgets::virtualSelectInput(
           ns("desslctperiod"), "Period:",
           choices = c("startweek","endweek","startday","endday"),
@@ -2940,7 +3075,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
         dplyr::mutate(
           order = base::as.numeric(order),
           weigth = base::as.numeric(weigth),
-          duration = base::as.numeric(duration),
+          sample = base::as.numeric(sample),
           start = base::as.character(start),
           end = base::as.character(end)
         ) |>
@@ -2967,6 +3102,7 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     
     shiny::observeEvent(input$savepaths, {
       shiny::req(!base::is.na(pathfile()))
+      
       quietly_write <- purrr::safely(writexl::write_xlsx)
       check <- quietly_write(learning_journey(), path = pathfile())
       
@@ -2987,7 +3123,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
     
     shiny::observeEvent(input$openpaths, {
       if (base::length(course_paths()) == 2) {
-        folder <- course_paths()$subfolders$paths
         if (base::file.exists(pathfile())){
           if (base::Sys.info()[1] == "Windows"){
             base::shell.exec(pathfile())
@@ -3032,17 +3167,6 @@ design_path_server <- function(id, selected_path, tbltree = NULL, course_data = 
         )
       }
     })
-    
-    
-    
-    output$downloadpath <- shiny::downloadHandler(
-      filename = function() {
-        base::paste0("course_map", ".xlsx")
-      },
-      content = function(file) {
-        writexl::write_xlsx(learning_journey(), path = file)
-      }
-    )
     
     
   })
