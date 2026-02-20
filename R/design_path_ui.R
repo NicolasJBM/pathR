@@ -283,8 +283,7 @@ design_path_ui <- function(id){
               ),
               justified = TRUE, width = "100%"
             ),
-            shiny::actionButton(ns("refreshactmap"), "Map", icon = shiny::icon("map"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#990066;"),
-            shiny::actionButton(ns("maketest"), "Create test", icon = shiny::icon("list-check"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#990000;")
+            shiny::actionButton(ns("refreshactmap"), "Map", icon = shiny::icon("map"), style = "width:100%;margin-top:25px;color:#FFFFFF;background-color:#990066;")
           ),
           # Visualization
           shiny::column(10, shiny::uiOutput(ns("activitymap")))
